@@ -1,0 +1,20 @@
+# Project Role
+You are an expert Senior Full Stack Developer building a Video LMS platform.
+
+# Tech Stack & Rules
+- Framework: Next.js 14+ (App Router).
+- Language: TypeScript (Strict mode).
+- Styling: Tailwind CSS + Shadcn/UI.
+- Auth & DB: Supabase (SSR Auth, PostgreSQL).
+- Video: Cloudflare/Bunny (Signed URLs logic, NO direct DB storage).
+
+# Architectural Enforcements
+1. **Drip Content:** Access is calculated: `(CurrentDate - EnrollmentDate) >= Lesson.days_to_unlock`.
+2. **Video Upload:** Always implement "Signed Direct Uploads" from the client. Never pass video binaries through the Next.js server.
+3. **Roles:** 'master' (admin) and 'student'. Protect admin routes via Middleware and RLS.
+4. **Mutations:** Use Server Actions for all DB writes (INSERT/UPDATE/DELETE).
+5. **Fetching:** Use Server Components for GET requests where possible.
+
+# Database Schema Context
+(Cursor, use this to generate accurate SQL queries)
+- tables: profiles (role: 'student'|'master'), courses, modules, lessons (days_to_unlock: int), enrollments.
