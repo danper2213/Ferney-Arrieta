@@ -10,10 +10,8 @@ import { toast } from 'sonner';
 type SettingRow = { key: string; value: string; label: string };
 
 export function SettingsForm({ settings }: { settings: SettingRow[] }) {
-  const [state, formAction, isPending] = useActionState(
-    async (_: SaveSettingsResult | null, formData: FormData) => {
-      return saveSettings(formData);
-    },
+  const [state, formAction, isPending] = useActionState<SaveSettingsResult | null, FormData>(
+    async (_, formData) => saveSettings(formData),
     null
   );
 

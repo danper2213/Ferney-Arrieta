@@ -18,7 +18,7 @@ export async function updateSetting(
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return { error: 'No autorizado. Inicia sesión.' };
+      return { success: false, error: 'No autorizado. Inicia sesión.' };
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -28,12 +28,12 @@ export async function updateSetting(
       .maybeSingle();
 
     if (profileError || !profile) {
-      return { error: 'No se pudo verificar tu rol.' };
+      return { success: false, error: 'No se pudo verificar tu rol.' };
     }
 
     const role = (profile as { role?: string }).role;
     if (role !== 'master') {
-      return { error: 'Solo el administrador (master) puede modificar la configuración.' };
+      return { success: false, error: 'Solo el administrador (master) puede modificar la configuración.' };
     }
 
     const { error: updateError } = await supabase
@@ -45,6 +45,7 @@ export async function updateSetting(
       console.error('Error al actualizar configuración:', updateError);
       const err = updateError as { message?: string; details?: string };
       return {
+        success: false,
         error: err?.message || err?.details || 'Error al guardar la configuración.',
       };
     }
@@ -55,23 +56,26 @@ export async function updateSetting(
     return { success: true };
   } catch (error) {
     console.error('Error inesperado en updateSetting:', error);
-    return { error: 'Error inesperado al guardar la configuración.' };
+    return { success: false, error: 'Error inesperado al guardar la configuración.' };
   }
 }
 
-export type SaveSettingsResult = { success: true } | { error: string };
+export type SaveSettingsResult = {
+  success: boolean;
+  error?: string;
+};
 
 /** Guarda múltiples configuraciones desde FormData. Keys deben venir en formData.get('_keys') como "key1,key2". */
 export async function saveSettings(formData: FormData): Promise<SaveSettingsResult> {
   const keysStr = formData.get('_keys');
   if (typeof keysStr !== 'string' || !keysStr.trim()) {
-    return { error: 'No se recibieron claves de configuración.' };
+    return { success: false, error: 'No se recibieron claves de configuración.' };
   }
   const keys = keysStr.split(',').map((k) => k.trim()).filter(Boolean);
   for (const key of keys) {
     const value = formData.get(key);
     const result = await updateSetting(key, value != null ? String(value) : '');
-    if (result.error) return result;
+    if ('error' in result && result.error) return { success: false, error: result.error };
   }
   return { success: true };
 }
