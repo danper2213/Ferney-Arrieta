@@ -33,7 +33,7 @@ export default function RegisterPage() {
   const initialState: RegisterState = {};
 
   const [state, formAction] = useActionState<RegisterState, FormData>(
-    register as (prevState: RegisterState, formData: FormData) => Promise<RegisterState | void>,
+    register as (prevState: RegisterState, formData: FormData) => Promise<RegisterState>,
     initialState,
   );
 
