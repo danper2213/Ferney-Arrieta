@@ -56,8 +56,8 @@ export function ProfileForm({
 
   const handleProfileSubmit = async (formData: FormData) => {
     const result = await updateProfile(formData);
-    if (result.error) {
-      toast.error(result.error);
+    if ((result as any).error) {
+      toast.error((result as any).error);
       return;
     }
     toast.success('Perfil actualizado');
@@ -66,8 +66,8 @@ export function ProfileForm({
 
   const handlePasswordSubmit = async (formData: FormData) => {
     const result = await updatePasswordForm(formData);
-    if (result.error) {
-      toast.error(result.error);
+    if ((result as any).error) {
+      toast.error((result as any).error);
       return;
     }
     toast.success('Contraseña cambiada');
