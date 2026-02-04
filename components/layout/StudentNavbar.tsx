@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { logout } from '@/app/login/actions';
-import { Home, LogOut, HeadphonesIcon } from 'lucide-react';
+import { Home, LogOut, HeadphonesIcon, User } from 'lucide-react';
 
 export type StudentNavbarUser = {
   displayName: string | null;
@@ -81,6 +81,15 @@ export function StudentNavbar({ user, points }: StudentNavbarProps) {
                   <p className="truncate text-xs text-slate-400">{user.email}</p>
                 </div>
                 <DropdownMenuSeparator className="bg-slate-700" />
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/dashboard/profile"
+                    className="flex cursor-pointer items-center gap-2 text-slate-200 focus:bg-white/10 focus:text-white"
+                  >
+                    <User className="h-4 w-4" />
+                    Mi Perfil
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link
                     href="/"

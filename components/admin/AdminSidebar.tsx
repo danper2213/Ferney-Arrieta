@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   BookOpen,
   Users,
+  Settings,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,7 @@ const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/courses', label: 'Cursos', icon: BookOpen },
   { href: '/admin/students', label: 'Estudiantes', icon: Users },
+  { href: '/admin/settings', label: 'Configuración', icon: Settings },
 ] as const;
 
 export function AdminSidebar({

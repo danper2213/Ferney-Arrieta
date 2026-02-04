@@ -108,9 +108,7 @@ export async function logout() {
     redirect('/');
   }
 
-  const cookieStore = await cookies();
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+  const cookieStore = await cookies();  const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value;

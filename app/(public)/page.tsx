@@ -35,13 +35,11 @@ const ACCENT_BORDER = 'border-blue-500/50';
 const HERO_BG_IMAGE =
   'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1920&q=80';
 
-// Número de WhatsApp para ventas (solo dígitos, con código de país). Ej: 573001234567
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
-
-function buildWhatsAppUrl(courseTitle: string): string {
-  if (!WHATSAPP_NUMBER) return '#';
+function buildWhatsAppUrl(courseTitle: string, whatsappNumber: string): string {
+  const num = (whatsappNumber || (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '')).replace(/\D/g, '');
+  if (!num) return '#';
   const message = `Hola, estoy interesado en el curso ${courseTitle} que vi en la web. ¿Me podrías enviar el link de pago de Bold?`;
-  return `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
 const FEATURES = [
@@ -102,6 +100,16 @@ export default async function LandingPage() {
       .eq('user_id', user.id);
     enrolledCourseIds = (enrollments ?? []).map((e) => e.course_id);
   }
+
+  const { data: whatsappSetting } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'whatsapp_support_number')
+    .maybeSingle();
+  const whatsappNumber =
+    (whatsappSetting as { value?: string } | null)?.value?.trim() ??
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ??
+    '';
 
   const libraryId = process.env.BUNNY_LIBRARY_ID ?? '';
   const marketingVideos = (marketingVideosRaw ?? []).map((video) => {
@@ -344,10 +352,11 @@ export default async function LandingPage() {
                           courseTitle={course.title}
                           paymentLink={course.payment_link}
                           userEmail={user?.email ?? null}
+                          whatsappNumber={whatsappNumber || null}
                         />
                       ) : (
                         <a
-                          href={buildWhatsAppUrl(course.title)}
+                          href={buildWhatsAppUrl(course.title, whatsappNumber)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] transition-colors"

@@ -10,19 +10,26 @@ import {
 import { MessageCircle, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
+const FALLBACK_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '';
 
-function buildReceiptWhatsAppUrl(courseTitle: string, userEmail: string | null): string {
-  if (!WHATSAPP_NUMBER) return '#';
+function buildReceiptWhatsAppUrl(
+  courseTitle: string,
+  userEmail: string | null,
+  whatsappNumber: string
+): string {
+  const num = (whatsappNumber || FALLBACK_WHATSAPP).replace(/\D/g, '');
+  if (!num) return '#';
   const email = userEmail?.trim() || 'Pendiente';
   const message = `Hola, acabo de realizar el pago del curso ${courseTitle} en Bold. Mi correo de registro es ${email}. Aquí adjunto mi comprobante.`;
-  return `https://wa.me/${WHATSAPP_NUMBER.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
 type PaymentModalProps = {
   courseTitle: string;
   paymentLink: string;
   userEmail: string | null;
+  /** Número de WhatsApp (desde app_settings o env). Si no se pasa, se usa NEXT_PUBLIC_WHATSAPP_NUMBER. */
+  whatsappNumber?: string | null;
   /** Botón que abre el modal (trigger). Si no se pasa, se usa el botón por defecto. */
   trigger?: React.ReactNode;
   /** Clase del botón trigger por defecto */
@@ -33,10 +40,15 @@ export function PaymentModal({
   courseTitle,
   paymentLink,
   userEmail,
+  whatsappNumber = null,
   trigger,
   triggerClassName,
 }: PaymentModalProps) {
-  const receiptUrl = buildReceiptWhatsAppUrl(courseTitle, userEmail);
+  const receiptUrl = buildReceiptWhatsAppUrl(
+    courseTitle,
+    userEmail,
+    whatsappNumber ?? FALLBACK_WHATSAPP
+  );
 
   const defaultTrigger = (
     <button
