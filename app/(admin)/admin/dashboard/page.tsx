@@ -51,7 +51,7 @@ export default async function AdminDashboardPage() {
     .order('created_at', { ascending: false })
     .limit(5);
 
-  const ultimosInscritos = (ultimosInscritosRaw ?? []) as Array<{
+  const ultimosInscritos = ((ultimosInscritosRaw ?? []) as unknown) as Array<{
     user_id: string;
     course_id: string;
     created_at: string;
@@ -73,7 +73,7 @@ export default async function AdminDashboardPage() {
     } | null;
   };
 
-  const ultimosComentarios = (ultimosComentariosRaw ?? []) as CommentRow[];
+  const ultimosComentarios = ((ultimosComentariosRaw ?? []) as unknown) as CommentRow[];
   const today = new Date().toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
