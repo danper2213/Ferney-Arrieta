@@ -77,7 +77,7 @@ export function CoursesGrid({ courses }: { courses: CourseItem[] }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="icon"
                       className="h-8 w-8 rounded-full bg-white/90 text-slate-700 shadow-md hover:bg-white hover:text-slate-900 border border-white/50 dark:bg-slate-800/90 dark:text-slate-200 dark:border-slate-600/50 dark:hover:bg-slate-700"
                     >
