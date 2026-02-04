@@ -53,9 +53,9 @@ export function ManageAccessDialog({
     const result = await manageEnrollment(student.id, courseId, action);
     setPendingCourseId(null);
 
-    if (result?.error) {
+    if ((result as any)?.error) {
       setActiveIds(prev);
-      toast.error(result.error);
+      toast.error((result as any).error);
       return;
     }
     toast.success(checked ? 'Acceso asignado' : 'Acceso quitado');
