@@ -3,7 +3,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-export type UpdateSettingResult = { success: true } | { error: string };
+export type UpdateSettingResult = {
+  success: boolean;
+  error?: string;
+};
 
 export async function updateSetting(
   key: string,
