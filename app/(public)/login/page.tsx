@@ -33,7 +33,7 @@ export default function LoginPage() {
   const initialState: LoginState = {};
 
   const [state, formAction] = useActionState<LoginState, FormData>(
-    login as (prevState: LoginState, formData: FormData) => Promise<LoginState | void>,
+    login as (prevState: LoginState, formData: FormData) => Promise<LoginState>,
     initialState,
   );
 
