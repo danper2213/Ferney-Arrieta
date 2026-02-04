@@ -44,8 +44,8 @@ export function CoursesGrid({ courses }: { courses: CourseItem[] }) {
     setIsDeleting(true);
     try {
       const result = await deleteCourse(courseToDelete.id, courseToDelete.thumbnail_url ?? '');
-      if (result.error) {
-        toast.error(result.error);
+      if ((result as any).error) {
+        toast.error((result as any).error);
         return;
       }
       toast.success('Curso eliminado correctamente');
