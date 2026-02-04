@@ -36,7 +36,7 @@ export default async function StudentDashboardPage() {
     .select('course_id, created_at, courses(id, title, slug, thumbnail_url, description)')
     .eq('user_id', user.id);
 
-  const enrollments = (enrollmentsRaw ?? []) as EnrollmentWithCourse[];
+  const enrollments = ((enrollmentsRaw ?? []) as unknown) as EnrollmentWithCourse[];
   const courseIds = enrollments
     .map((e) => e.courses?.id)
     .filter((id): id is string => !!id);
