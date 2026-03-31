@@ -106,9 +106,7 @@ export async function logout() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;  if (!supabaseUrl || !supabaseKey) {
     redirect('/');
-  }
-
-  const cookieStore = await cookies();  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+  }  const cookieStore = await cookies();  const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value;
@@ -129,8 +127,6 @@ export async function logout() {
         });
       },
     },
-  });
-
-  await supabase.auth.signOut();
+  });  await supabase.auth.signOut();
   redirect('/');
 }
