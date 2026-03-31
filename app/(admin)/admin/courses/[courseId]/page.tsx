@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import {
   Accordion,
   AccordionContent,
@@ -12,7 +14,11 @@ import { AddModuleDialog } from './add-module-dialog';
 import { AddLessonDialog } from './add-lesson-dialog';
 import { PublishButton } from './publish-button';
 import { BunnyUploader } from '@/components/admin/BunnyUploader';
-import { BookOpen, Clock, Video } from 'lucide-react';
+import { BookOpen, Clock, ExternalLink, Video } from 'lucide-react';
+import { ModuleActions } from './module-actions';
+import { LessonActions } from './lesson-actions';
+import { generateBunnyToken } from '@/lib/bunny/token';
+import { cn } from '@/lib/utils';
 
 type Module = {
   id: string;
@@ -98,6 +104,12 @@ export default async function CourseEditPage({
     .sort((a, b) => a.order_index - b.order_index);
 
   const totalLessons = sortedModules.reduce((acc, module) => acc + module.lessons.length, 0);
+  const getLessonEmbedUrl = (videoProviderId?: string | null) => {
+    if (!videoProviderId) return null;
+    const tokenResult = generateBunnyToken(videoProviderId, 3600);
+    if ('error' in tokenResult) return null;
+    return tokenResult.embedUrl;
+  };
 
   return (
     <div className="container mx-auto py-10 max-w-5xl">
@@ -171,18 +183,21 @@ export default async function CourseEditPage({
               value={module.id}
               className="border rounded-lg overflow-hidden"
             >
-              <AccordionTrigger className="px-6 py-4 hover:bg-muted/50 hover:no-underline">
-                <div className="flex items-center gap-3 text-left">
-                  <Badge variant="outline" className="font-mono">
-                    {index + 1}
-                  </Badge>
-                  <span className="font-semibold text-lg">{module.title}</span>
-                  <Badge variant="secondary" className="ml-auto mr-2">
-                    {module.lessons.length}{' '}
-                    {module.lessons.length === 1 ? 'lección' : 'lecciones'}
-                  </Badge>
-                </div>
-              </AccordionTrigger>
+              <div className="flex items-center gap-2 px-6 py-2">
+                <AccordionTrigger className="flex-1 py-2 hover:bg-muted/50 hover:no-underline">
+                  <div className="flex w-full items-center gap-3 text-left">
+                    <Badge variant="outline" className="font-mono">
+                      {index + 1}
+                    </Badge>
+                    <span className="font-semibold text-lg">{module.title}</span>
+                    <Badge variant="secondary" className="ml-auto mr-2">
+                      {module.lessons.length}{' '}
+                      {module.lessons.length === 1 ? 'lección' : 'lecciones'}
+                    </Badge>
+                  </div>
+                </AccordionTrigger>
+                <ModuleActions moduleId={module.id} title={module.title} />
+              </div>
               <AccordionContent className="px-6 pb-4">
                 <div className="space-y-4">
                   {/* Botón Agregar Lección */}
@@ -199,50 +214,75 @@ export default async function CourseEditPage({
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {module.lessons.map((lesson, lessonIndex) => (
+                      {module.lessons.map((lesson, lessonIndex) => {
+                        const lessonEmbedUrl = getLessonEmbedUrl(lesson.video_provider_id);
+                        return (
                         <Card key={lesson.id}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
+                          <Accordion type="single" collapsible>
+                            <div className="flex items-center gap-2 px-4 pt-2">
+                              <AccordionTrigger className="flex-1 py-2 hover:no-underline">
+                                <div className="flex w-full items-center gap-2 text-left">
                                   <Badge variant="outline" className="font-mono text-xs">
                                     {lessonIndex + 1}
                                   </Badge>
                                   <CardTitle className="text-base">{lesson.title}</CardTitle>
+                                  {lesson.video_provider_id || lesson.video_url ? (
+                                    <Badge variant="default" className="ml-auto mr-2">
+                                      <Video className="h-3 w-3 mr-1" />
+                                      Video
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="secondary" className="ml-auto mr-2">
+                                      <Video className="h-3 w-3 mr-1" />
+                                      Sin video
+                                    </Badge>
+                                  )}
                                 </div>
+                              </AccordionTrigger>
+                              <LessonActions
+                                lessonId={lesson.id}
+                                title={lesson.title}
+                                description={lesson.description}
+                                daysToUnlock={lesson.days_to_unlock}
+                                videoEmbedUrl={lessonEmbedUrl}
+                              />
+                            </div>
+                            <AccordionContent>
+                              <CardHeader className="pt-0 pb-3">
                                 <CardDescription className="text-sm">
                                   {lesson.description}
                                 </CardDescription>
-                              </div>
-                              {lesson.video_provider_id || lesson.video_url ? (
-                                <Badge variant="default">
-                                  <Video className="h-3 w-3 mr-1" />
-                                  Video
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">
-                                  <Video className="h-3 w-3 mr-1" />
-                                  Sin video
-                                </Badge>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent className="pb-3 space-y-3">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Clock className="h-3 w-3" />
-                              <span>
-                                {lesson.days_to_unlock === 0
-                                  ? 'Disponible inmediatamente'
-                                  : `Se desbloquea en ${lesson.days_to_unlock} ${lesson.days_to_unlock === 1 ? 'día' : 'días'
-                                  }`}
-                              </span>
-                            </div>
-                            {!lesson.video_provider_id && !lesson.video_url && (
-                              <BunnyUploader lessonId={lesson.id} lessonTitle={lesson.title} />
-                            )}
-                          </CardContent>
+                              </CardHeader>
+                              <CardContent className="pb-3 space-y-3">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  <span>
+                                    {lesson.days_to_unlock === 0
+                                      ? 'Disponible inmediatamente'
+                                      : `Se desbloquea en ${lesson.days_to_unlock} ${lesson.days_to_unlock === 1 ? 'día' : 'días'
+                                      }`}
+                                  </span>
+                                </div>
+                                {lessonEmbedUrl && (
+                                  <Link
+                                    href={lessonEmbedUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+                                  >
+                                    <ExternalLink className="h-4 w-4 mr-2" />
+                                    Ver video
+                                  </Link>
+                                )}
+                                {!lesson.video_provider_id && !lesson.video_url && (
+                                  <BunnyUploader lessonId={lesson.id} lessonTitle={lesson.title} />
+                                )}
+                              </CardContent>
+                            </AccordionContent>
+                          </Accordion>
                         </Card>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

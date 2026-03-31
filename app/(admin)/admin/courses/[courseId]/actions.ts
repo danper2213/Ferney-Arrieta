@@ -2,8 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { deleteBunnyVideo } from '@/app/actions/bunny';
 
 export type CreateModuleState = {
+  error?: string;
+  success?: boolean;
+};
+
+export type CourseMutationState = {
   error?: string;
   success?: boolean;
 };
@@ -329,5 +335,240 @@ export async function publishCourse(courseId: string): Promise<{ error?: string;
     return {
       error: 'Error inesperado al publicar el curso',
     };
+  }
+}
+
+export async function updateModule(
+  moduleId: string,
+  _prevState: CourseMutationState,
+  formData: FormData
+): Promise<CourseMutationState> {
+  const title = String(formData.get('title') ?? '').trim();
+  if (!title || title.length < 3) {
+    return { error: 'El titulo del modulo debe tener al menos 3 caracteres' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: module, error: fetchError } = await supabase
+      .from('modules')
+      .select('id, course_id')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (fetchError || !module) {
+      return { error: 'El modulo no existe' };
+    }
+
+    const { error: updateError } = await supabase
+      .from('modules')
+      .update({ title })
+      .eq('id', moduleId);
+
+    if (updateError) {
+      const err = updateError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo actualizar el modulo' };
+    }
+
+    revalidatePath(`/admin/courses/${module.course_id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('updateModule error:', error);
+    return { error: 'Error inesperado al actualizar el modulo' };
+  }
+}
+
+export async function deleteModule(
+  moduleId: string
+): Promise<CourseMutationState> {
+  try {
+    const supabase = await createClient();
+    const { data: module, error: fetchError } = await supabase
+      .from('modules')
+      .select('id, course_id')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (fetchError || !module) {
+      return { error: 'El modulo no existe' };
+    }
+
+    // Elimina primero lecciones para evitar errores de FK.
+    const { error: lessonsDeleteError } = await supabase
+      .from('lessons')
+      .delete()
+      .eq('module_id', moduleId);
+
+    if (lessonsDeleteError) {
+      const err = lessonsDeleteError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudieron eliminar las lecciones del modulo' };
+    }
+
+    const { error: moduleDeleteError } = await supabase
+      .from('modules')
+      .delete()
+      .eq('id', moduleId);
+
+    if (moduleDeleteError) {
+      const err = moduleDeleteError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo eliminar el modulo' };
+    }
+
+    revalidatePath(`/admin/courses/${module.course_id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('deleteModule error:', error);
+    return { error: 'Error inesperado al eliminar el modulo' };
+  }
+}
+
+export async function updateLesson(
+  lessonId: string,
+  _prevState: CourseMutationState,
+  formData: FormData
+): Promise<CourseMutationState> {
+  const title = String(formData.get('title') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+  const daysToUnlock = parseInt(String(formData.get('days_to_unlock') ?? '0'), 10);
+
+  if (!title || title.length < 3) {
+    return { error: 'El titulo debe tener al menos 3 caracteres' };
+  }
+  if (!description || description.length < 10) {
+    return { error: 'La descripcion debe tener al menos 10 caracteres' };
+  }
+  if (isNaN(daysToUnlock) || daysToUnlock < 0) {
+    return { error: 'Los dias para desbloquear deben ser 0 o mayor' };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data: lesson, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, module_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (fetchError || !lesson) {
+      return { error: 'La leccion no existe' };
+    }
+
+    const { data: module } = await supabase
+      .from('modules')
+      .select('course_id')
+      .eq('id', lesson.module_id)
+      .maybeSingle();
+
+    const { error: updateError } = await supabase
+      .from('lessons')
+      .update({
+        title,
+        description,
+        days_to_unlock: daysToUnlock,
+      })
+      .eq('id', lessonId);
+
+    if (updateError) {
+      const err = updateError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo actualizar la leccion' };
+    }
+
+    if (module?.course_id) {
+      revalidatePath(`/admin/courses/${module.course_id}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('updateLesson error:', error);
+    return { error: 'Error inesperado al actualizar la leccion' };
+  }
+}
+
+export async function deleteLesson(
+  lessonId: string
+): Promise<CourseMutationState> {
+  try {
+    const supabase = await createClient();
+    const { data: lesson, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, module_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (fetchError || !lesson) {
+      return { error: 'La leccion no existe' };
+    }
+
+    const { data: module } = await supabase
+      .from('modules')
+      .select('course_id')
+      .eq('id', lesson.module_id)
+      .maybeSingle();
+
+    const { error: deleteError } = await supabase
+      .from('lessons')
+      .delete()
+      .eq('id', lessonId);
+
+    if (deleteError) {
+      const err = deleteError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo eliminar la leccion' };
+    }
+
+    if (module?.course_id) {
+      revalidatePath(`/admin/courses/${module.course_id}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('deleteLesson error:', error);
+    return { error: 'Error inesperado al eliminar la leccion' };
+  }
+}
+
+export async function removeLessonVideo(
+  lessonId: string
+): Promise<CourseMutationState> {
+  try {
+    const supabase = await createClient();
+    const { data: lesson, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, module_id, video_provider_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (fetchError || !lesson) {
+      return { error: 'La leccion no existe' };
+    }
+
+    const { data: module } = await supabase
+      .from('modules')
+      .select('course_id')
+      .eq('id', lesson.module_id)
+      .maybeSingle();
+
+    const videoGuid = lesson.video_provider_id;
+    if (videoGuid) {
+      const bunnyDelete = await deleteBunnyVideo(videoGuid);
+      if (!bunnyDelete.success) {
+        return { error: bunnyDelete.error };
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('lessons')
+      .update({ video_provider_id: null })
+      .eq('id', lessonId);
+
+    if (updateError) {
+      const err = updateError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo limpiar el video en la leccion' };
+    }
+
+    if (module?.course_id) {
+      revalidatePath(`/admin/courses/${module.course_id}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('removeLessonVideo error:', error);
+    return { error: 'Error inesperado al eliminar el video' };
   }
 }
