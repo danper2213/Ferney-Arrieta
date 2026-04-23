@@ -32,23 +32,24 @@ const SUPPORT_LINK = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? process.env.NEX
 export function StudentNavbar({ user, points }: StudentNavbarProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
-      <div className="container flex h-14 items-center justify-between px-4">
+      <div className="container relative flex h-16 w-full items-center px-4 sm:h-[4.25rem]">
+        <div className="flex flex-1" aria-hidden="true" />
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 font-semibold text-white hover:opacity-90 transition-opacity"
+          className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center font-semibold text-white transition-opacity hover:opacity-90"
           aria-label="Ir al Dashboard"
         >
           <Image
             src="/logo.png"
             alt={LOGO_ALT}
-            width={140}
-            height={36}
-            className="h-8 w-auto object-contain dark:invert dark:opacity-95"
+            width={280}
+            height={70}
+            className="h-11 w-auto max-w-[min(88vw,280px)] object-contain sm:h-12 sm:max-w-[min(90vw,320px)] md:h-14 md:max-w-[360px]"
             priority
           />
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav className="relative z-20 flex flex-1 items-center justify-end gap-3">
           {points != null && (
             <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-sm text-slate-300">
               <span className="font-medium text-primary">{points}</span>

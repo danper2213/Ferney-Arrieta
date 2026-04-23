@@ -16,7 +16,9 @@ import { PublishButton } from './publish-button';
 import { BunnyUploader } from '@/components/admin/BunnyUploader';
 import { BookOpen, Clock, ExternalLink, Video } from 'lucide-react';
 import { ModuleActions } from './module-actions';
+import { ModuleReorderButtons } from './module-reorder-buttons';
 import { LessonActions } from './lesson-actions';
+import { LessonReorderButtons } from './lesson-reorder-buttons';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { cn } from '@/lib/utils';
 
@@ -183,20 +185,27 @@ export default async function CourseEditPage({
               value={module.id}
               className="border rounded-lg overflow-hidden"
             >
-              <div className="flex items-center gap-2 px-6 py-2">
-                <AccordionTrigger className="flex-1 py-2 hover:bg-muted/50 hover:no-underline">
-                  <div className="flex w-full items-center gap-3 text-left">
-                    <Badge variant="outline" className="font-mono">
+              <div className="flex w-full min-w-0 items-center gap-2 px-6 py-2">
+                <AccordionTrigger className="min-w-0 flex-1 py-2 hover:bg-muted/50 hover:no-underline [&>svg]:shrink-0">
+                  <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                    <Badge variant="outline" className="shrink-0 font-mono">
                       {index + 1}
                     </Badge>
-                    <span className="font-semibold text-lg">{module.title}</span>
-                    <Badge variant="secondary" className="ml-auto mr-2">
+                    <span className="min-w-0 flex-1 truncate font-semibold text-lg">{module.title}</span>
+                    <Badge variant="secondary" className="shrink-0">
                       {module.lessons.length}{' '}
                       {module.lessons.length === 1 ? 'lección' : 'lecciones'}
                     </Badge>
                   </div>
                 </AccordionTrigger>
-                <ModuleActions moduleId={module.id} title={module.title} />
+                <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+                  <ModuleReorderButtons
+                    moduleId={module.id}
+                    canMoveUp={index > 0}
+                    canMoveDown={index < sortedModules.length - 1}
+                  />
+                  <ModuleActions moduleId={module.id} title={module.title} />
+                </div>
               </div>
               <AccordionContent className="px-6 pb-4">
                 <div className="space-y-4">
@@ -219,33 +228,42 @@ export default async function CourseEditPage({
                         return (
                         <Card key={lesson.id}>
                           <Accordion type="single" collapsible>
-                            <div className="flex items-center gap-2 px-4 pt-2">
-                              <AccordionTrigger className="flex-1 py-2 hover:no-underline">
-                                <div className="flex w-full items-center gap-2 text-left">
-                                  <Badge variant="outline" className="font-mono text-xs">
+                            <div className="flex w-full min-w-0 items-center gap-2 px-4 pt-2">
+                              <AccordionTrigger className="min-w-0 flex-1 py-2 hover:no-underline [&>svg]:shrink-0">
+                                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left">
+                                  <Badge variant="outline" className="shrink-0 font-mono text-xs">
                                     {lessonIndex + 1}
                                   </Badge>
-                                  <CardTitle className="text-base">{lesson.title}</CardTitle>
+                                  <CardTitle className="min-w-0 flex-1 truncate text-base">
+                                    {lesson.title}
+                                  </CardTitle>
                                   {lesson.video_provider_id || lesson.video_url ? (
-                                    <Badge variant="default" className="ml-auto mr-2">
+                                    <Badge variant="default" className="shrink-0">
                                       <Video className="h-3 w-3 mr-1" />
                                       Video
                                     </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="ml-auto mr-2">
+                                    <Badge variant="secondary" className="shrink-0">
                                       <Video className="h-3 w-3 mr-1" />
                                       Sin video
                                     </Badge>
                                   )}
                                 </div>
                               </AccordionTrigger>
-                              <LessonActions
-                                lessonId={lesson.id}
-                                title={lesson.title}
-                                description={lesson.description}
-                                daysToUnlock={lesson.days_to_unlock}
-                                videoEmbedUrl={lessonEmbedUrl}
-                              />
+                              <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
+                                <LessonReorderButtons
+                                  lessonId={lesson.id}
+                                  canMoveUp={lessonIndex > 0}
+                                  canMoveDown={lessonIndex < module.lessons.length - 1}
+                                />
+                                <LessonActions
+                                  lessonId={lesson.id}
+                                  title={lesson.title}
+                                  description={lesson.description}
+                                  daysToUnlock={lesson.days_to_unlock}
+                                  videoEmbedUrl={lessonEmbedUrl}
+                                />
+                              </div>
                             </div>
                             <AccordionContent>
                               <CardHeader className="pt-0 pb-3">

@@ -14,9 +14,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { ManageAccessDialog } from './ManageAccessDialog';
 import type { StudentRow, CourseOption } from '@/app/(admin)/admin/students/page';
-import { Search, UserCog } from 'lucide-react';
+import { deleteStudent } from '@/app/(admin)/admin/students/actions';
+import { Search, Trash2, UserCog } from 'lucide-react';
+import { toast } from 'sonner';
 
 type StudentsTableProps = {
   students: StudentRow[];
@@ -32,6 +43,8 @@ export function StudentsTable({
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [manageUserId, setManageUserId] = useState<string | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<StudentRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -51,6 +64,24 @@ export function StudentsTable({
   const studentToManage = manageUserId
     ? students.find((s) => s.id === manageUserId)
     : null;
+
+  const handleConfirmDelete = async () => {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteStudent(studentToDelete.id);
+      if ('error' in result && result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success('Estudiante eliminado del panel');
+      setStudentToDelete(null);
+      setManageUserId(null);
+      router.refresh();
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -86,7 +117,7 @@ export function StudentsTable({
                 <TableHead>Estudiante</TableHead>
                 <TableHead>Fecha Registro</TableHead>
                 <TableHead>Cursos Activos</TableHead>
-                <TableHead className="w-[140px]">Acciones</TableHead>
+                <TableHead className="min-w-[240px] w-[1%] whitespace-nowrap text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,16 +161,30 @@ export function StudentsTable({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => setManageUserId(student.id)}
-                    >
-                      <UserCog className="h-3.5 w-3.5" />
-                      Gestionar Acceso
-                    </Button>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <div className="inline-flex items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 shrink-0"
+                        onClick={() => setManageUserId(student.id)}
+                      >
+                        <UserCog className="h-3.5 w-3.5" />
+                        Gestionar Acceso
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                        onClick={() => setStudentToDelete(student)}
+                        title="Eliminar estudiante"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="sr-only">Eliminar estudiante</span>
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -157,6 +202,28 @@ export function StudentsTable({
           enrolledCourseIds={studentToManage.enrolledCourseIds}
         />
       )}
+
+      <AlertDialog open={studentToDelete !== null} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar estudiante?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se quitarán todas las inscripciones, comentarios y progreso asociados a{' '}
+              <span className="font-medium text-foreground">
+                {studentToDelete?.displayName ?? studentToDelete?.email ?? 'este alumno'}
+              </span>
+              . El perfil dejará de aparecer en la lista. La cuenta en autenticación puede seguir existiendo en
+              Supabase hasta que la elimines desde el panel de Auth si lo necesitas.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <Button variant="destructive" disabled={isDeleting} onClick={handleConfirmDelete}>
+              {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

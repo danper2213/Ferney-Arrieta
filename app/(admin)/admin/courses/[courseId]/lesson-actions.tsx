@@ -87,8 +87,8 @@ export function LessonActions({
     <div className="flex items-center">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button type="button" size="icon" variant="ghost" className="h-7 w-7">
-            <MoreVertical className="h-3.5 w-3.5" />
+          <Button type="button" size="icon" variant="ghost" className="h-8 w-8">
+            <MoreVertical className="h-4 w-4" />
             <span className="sr-only">Acciones de seccion</span>
           </Button>
         </DropdownMenuTrigger>

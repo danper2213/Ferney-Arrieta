@@ -293,6 +293,202 @@ export async function updateLessonVideo(
   }
 }
 
+export type MoveLessonResult = { success: true } | { error: string };
+
+/**
+ * Intercambia order_index con la lección adyacente dentro del mismo módulo.
+ */
+export async function moveLesson(lessonId: string, direction: 'up' | 'down'): Promise<MoveLessonResult> {
+  if (!lessonId || (direction !== 'up' && direction !== 'down')) {
+    return { error: 'Solicitud inválida' };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { error: 'Debes iniciar sesión' };
+    }
+
+    const { data: current, error: curErr } = await supabase
+      .from('lessons')
+      .select('id, module_id, order_index')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (curErr || !current) {
+      return { error: 'La lección no existe' };
+    }
+
+    const moduleId = (current as { module_id: string }).module_id;
+
+    const { data: mod, error: modErr } = await supabase
+      .from('modules')
+      .select('course_id')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (modErr || !mod) {
+      return { error: 'El módulo no existe' };
+    }
+
+    const courseId = (mod as { course_id: string }).course_id;
+
+    const { data: rowsRaw, error: listErr } = await supabase
+      .from('lessons')
+      .select('id, order_index')
+      .eq('module_id', moduleId)
+      .order('order_index', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (listErr || !rowsRaw?.length) {
+      return { error: 'No se pudieron cargar las lecciones del módulo' };
+    }
+
+    const rows = rowsRaw as { id: string; order_index: number }[];
+    const i = rows.findIndex((r) => r.id === lessonId);
+    if (i === -1) {
+      return { error: 'La lección no está en el módulo' };
+    }
+
+    const j = direction === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= rows.length) {
+      return { error: 'No se puede mover más en esa dirección' };
+    }
+
+    const a = rows[i];
+    const b = rows[j];
+    const oa = a.order_index ?? 0;
+    const ob = b.order_index ?? 0;
+    const temp = -2147483640 + Math.floor(Math.random() * 1000);
+
+    const { error: e1 } = await supabase.from('lessons').update({ order_index: temp }).eq('id', a.id);
+    if (e1) {
+      console.error('moveLesson temp:', e1);
+      return { error: e1.message || 'Error al reordenar' };
+    }
+
+    const { error: e2 } = await supabase.from('lessons').update({ order_index: oa }).eq('id', b.id);
+    if (e2) {
+      console.error('moveLesson step2:', e2);
+      await supabase.from('lessons').update({ order_index: oa }).eq('id', a.id);
+      return { error: e2.message || 'Error al reordenar' };
+    }
+
+    const { error: e3 } = await supabase.from('lessons').update({ order_index: ob }).eq('id', a.id);
+    if (e3) {
+      console.error('moveLesson step3:', e3);
+      await supabase.from('lessons').update({ order_index: ob }).eq('id', b.id);
+      await supabase.from('lessons').update({ order_index: oa }).eq('id', a.id);
+      return { error: e3.message || 'Error al reordenar' };
+    }
+
+    revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath('/admin/courses');
+    return { success: true };
+  } catch (error) {
+    console.error('moveLesson error:', error);
+    return { error: 'Error inesperado al reordenar' };
+  }
+}
+
+export type MoveModuleResult = { success: true } | { error: string };
+
+/**
+ * Intercambia order_index con el módulo adyacente dentro del mismo curso.
+ */
+export async function moveModule(moduleId: string, direction: 'up' | 'down'): Promise<MoveModuleResult> {
+  if (!moduleId || (direction !== 'up' && direction !== 'down')) {
+    return { error: 'Solicitud inválida' };
+  }
+
+  try {
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return { error: 'Debes iniciar sesión' };
+    }
+
+    const { data: current, error: curErr } = await supabase
+      .from('modules')
+      .select('id, course_id, order_index')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (curErr || !current) {
+      return { error: 'El módulo no existe' };
+    }
+
+    const courseId = (current as { course_id: string }).course_id;
+
+    const { data: rowsRaw, error: listErr } = await supabase
+      .from('modules')
+      .select('id, order_index')
+      .eq('course_id', courseId)
+      .order('order_index', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (listErr || !rowsRaw?.length) {
+      return { error: 'No se pudieron cargar los módulos del curso' };
+    }
+
+    const rows = rowsRaw as { id: string; order_index: number }[];
+    const i = rows.findIndex((r) => r.id === moduleId);
+    if (i === -1) {
+      return { error: 'El módulo no está en el curso' };
+    }
+
+    const j = direction === 'up' ? i - 1 : i + 1;
+    if (j < 0 || j >= rows.length) {
+      return { error: 'No se puede mover más en esa dirección' };
+    }
+
+    const a = rows[i];
+    const b = rows[j];
+    const oa = a.order_index ?? 0;
+    const ob = b.order_index ?? 0;
+    const temp = -2147483640 + Math.floor(Math.random() * 1000);
+
+    const { error: e1 } = await supabase.from('modules').update({ order_index: temp }).eq('id', a.id);
+    if (e1) {
+      console.error('moveModule temp:', e1);
+      return { error: e1.message || 'Error al reordenar módulos' };
+    }
+
+    const { error: e2 } = await supabase.from('modules').update({ order_index: oa }).eq('id', b.id);
+    if (e2) {
+      console.error('moveModule step2:', e2);
+      await supabase.from('modules').update({ order_index: oa }).eq('id', a.id);
+      return { error: e2.message || 'Error al reordenar módulos' };
+    }
+
+    const { error: e3 } = await supabase.from('modules').update({ order_index: ob }).eq('id', a.id);
+    if (e3) {
+      console.error('moveModule step3:', e3);
+      await supabase.from('modules').update({ order_index: ob }).eq('id', b.id);
+      await supabase.from('modules').update({ order_index: oa }).eq('id', a.id);
+      return { error: e3.message || 'Error al reordenar módulos' };
+    }
+
+    revalidatePath(`/admin/courses/${courseId}`);
+    revalidatePath('/admin/courses');
+    return { success: true };
+  } catch (error) {
+    console.error('moveModule error:', error);
+    return { error: 'Error inesperado al reordenar módulos' };
+  }
+}
+
 export async function publishCourse(courseId: string): Promise<{ error?: string; success?: boolean }> {
   try {
     const supabase = await createClient();

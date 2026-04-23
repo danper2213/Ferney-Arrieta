@@ -31,9 +31,8 @@ const ACCENT = 'text-blue-400';
 const ACCENT_BG = 'bg-blue-600 hover:bg-blue-500';
 const ACCENT_BORDER = 'border-blue-500/50';
 
-// Imagen de fondo del Hero (reemplaza por tu propia imagen de acordeón/escenario)
-const HERO_BG_IMAGE =
-  'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=1920&q=80';
+// Imagen de fondo del Hero (`public/fer_bg.jpeg`)
+const HERO_BG_IMAGE = '/fer_bg.jpeg';
 
 function buildWhatsAppUrl(courseTitle: string, whatsappNumber: string): string {
   const num = (whatsappNumber || (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '')).replace(/\D/g, '');
@@ -145,7 +144,7 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ——— Hero Section ——— */}
       <section
-        className="relative min-h-[85vh] flex items-center justify-center overflow-hidden bg-cover bg-center"
+        className="relative flex min-h-[85vh] items-center justify-center overflow-hidden bg-slate-950 bg-no-repeat [background-size:cover] [background-position:center_18%] sm:[background-position:center_22%] lg:[background-position:center_26%]"
         style={{ backgroundImage: `url(${HERO_BG_IMAGE})` }}
       >
         <div className="absolute inset-0 bg-black/60" />

@@ -23,23 +23,24 @@ export type NavbarUser = {
 export function Navbar({ user }: { user: NavbarUser | null }) {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="container flex h-14 items-center justify-between px-4">
+      <div className="container relative flex h-16 w-full items-center px-4 sm:h-[4.25rem]">
+        <div className="flex flex-1" aria-hidden="true" />
         <Link
           href="/"
-          className="flex items-center gap-2 font-semibold text-foreground hover:opacity-90 transition-opacity"
+          className="absolute left-1/2 top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 items-center font-semibold text-foreground transition-opacity hover:opacity-90"
           aria-label="Comunidad de Acordeoneros - Inicio"
         >
           <Image
             src="/logo.png"
             alt="Comunidad de Acordeoneros"
-            width={180}
-            height={44}
-            className="h-9 w-auto object-contain dark:invert dark:opacity-95"
+            width={280}
+            height={70}
+            className="h-11 w-auto max-w-[min(88vw,280px)] object-contain sm:h-12 sm:max-w-[min(90vw,320px)] md:h-14 md:max-w-[360px]"
             priority
           />
         </Link>
 
-        <nav className="flex items-center gap-2">
+        <nav className="relative z-20 flex flex-1 items-center justify-end gap-2">
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
