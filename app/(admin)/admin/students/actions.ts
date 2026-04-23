@@ -49,6 +49,43 @@ export async function deleteStudent(studentUserId: string): Promise<DeleteStuden
     return { error: 'Solo se pueden eliminar cuentas con rol estudiante.' };
   }
 
+  const { data: rpcData, error: rpcError } = await supabase.rpc('delete_student_as_master', {
+    p_target_user_id: studentUserId,
+  });
+
+  const rpcMissing =
+    !!rpcError &&
+    (rpcError.code === '42883' ||
+      (rpcError.message ?? '').toLowerCase().includes('function') ||
+      (rpcError.message ?? '').includes('delete_student_as_master'));
+
+  let rpcPayload: { success?: boolean; error?: string } | null = null;
+  if (!rpcError && rpcData != null) {
+    if (typeof rpcData === 'object') {
+      rpcPayload = rpcData as { success?: boolean; error?: string };
+    } else if (typeof rpcData === 'string') {
+      try {
+        rpcPayload = JSON.parse(rpcData) as { success?: boolean; error?: string };
+      } catch {
+        rpcPayload = null;
+      }
+    }
+  }
+
+  if (rpcPayload) {
+    const payload = rpcPayload;
+    if (payload.success === true) {
+      revalidatePath('/admin/students');
+      return { success: true };
+    }
+    if (payload.error) {
+      return { error: payload.error };
+    }
+  } else if (rpcError && !rpcMissing) {
+    console.error('deleteStudent rpc:', rpcError);
+    return { error: rpcError.message || 'Error al eliminar el estudiante' };
+  }
+
   const { error: enrollErr } = await supabase.from('enrollments').delete().eq('user_id', studentUserId);
   if (enrollErr) {
     console.error('deleteStudent enrollments:', enrollErr);
@@ -67,18 +104,26 @@ export async function deleteStudent(studentUserId: string): Promise<DeleteStuden
     return { error: progressErr.message || 'No se pudo eliminar el progreso del alumno.' };
   }
 
-  const { error: profileErr } = await supabase
+  const { data: deletedRows, error: profileErr } = await supabase
     .from('profiles')
     .delete()
     .eq('id', studentUserId)
-    .eq('role', 'student');
+    .eq('role', 'student')
+    .select('id');
 
   if (profileErr) {
     console.error('deleteStudent profile:', profileErr);
     return {
       error:
         profileErr.message ||
-        'No se pudo eliminar el perfil. Aplica la migración SQL de políticas RLS para borrado por master o revisa permisos en Supabase.',
+        'No se pudo eliminar el perfil. Aplica las migraciones SQL (delete_student_as_master o políticas RLS de DELETE) en Supabase.',
+    };
+  }
+
+  if (!deletedRows?.length) {
+    return {
+      error:
+        'No se eliminó ningún perfil (RLS o permisos). Aplica la migración delete_student_as_master en Supabase.',
     };
   }
 
