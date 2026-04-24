@@ -2,10 +2,9 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { moveModule } from './actions';
+import { ReorderControls } from '@/components/admin/ReorderControls';
 
 type ModuleReorderButtonsProps = {
   moduleId: string;
@@ -30,35 +29,17 @@ export function ModuleReorderButtons({ moduleId, canMoveUp, canMoveDown }: Modul
   };
 
   return (
-    <div
-      className="flex shrink-0 flex-col gap-px"
-      role="group"
-      aria-label="Reordenar este módulo en el curso"
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-        disabled={!canMoveUp || pending}
-        onClick={() => run('up')}
-        title="Mover el módulo hacia arriba en el curso"
-      >
-        <ChevronUp className="h-4 w-4" aria-hidden />
-        <span className="sr-only">Mover módulo hacia arriba</span>
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-        disabled={!canMoveDown || pending}
-        onClick={() => run('down')}
-        title="Mover el módulo hacia abajo en el curso"
-      >
-        <ChevronDown className="h-4 w-4" aria-hidden />
-        <span className="sr-only">Mover módulo hacia abajo</span>
-      </Button>
-    </div>
+    <ReorderControls
+      pending={pending}
+      canMoveUp={canMoveUp}
+      canMoveDown={canMoveDown}
+      onMoveUp={() => run('up')}
+      onMoveDown={() => run('down')}
+      labels={{
+        group: 'Reordenar este módulo en el curso',
+        moveUp: 'Subir módulo',
+        moveDown: 'Bajar módulo',
+      }}
+    />
   );
 }

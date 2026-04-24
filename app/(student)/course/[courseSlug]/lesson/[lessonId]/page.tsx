@@ -289,6 +289,7 @@ export default async function StudentLessonPage({
               {lessonData.video_provider_id && embedUrl ? (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-lg">
                   <iframe
+                    title={`Video: ${lessonData.title}`}
                     src={embedUrl}
                     className="absolute inset-0 h-full w-full"
                     loading="lazy"

@@ -1,8 +1,8 @@
 'use server';
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { createSupabaseForAction } from '@/lib/supabase/action-client';
 
 export type LoginState = {
   error?: string;
@@ -36,29 +36,7 @@ export async function login(
   }
 
   const cookieStore = await cookies();
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name: string, value: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value,
-          ...options,
-        });
-      },
-      remove(name: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value: '',
-          ...options,
-          maxAge: 0,
-        });
-      },
-    },
-  });
+  const supabase = createSupabaseForAction(supabaseUrl, supabaseKey, cookieStore);
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -104,29 +82,15 @@ export async function login(
 
 export async function logout() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;  if (!supabaseUrl || !supabaseKey) {
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
     redirect('/');
-  }  const cookieStore = await cookies();  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name: string, value: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value,
-          ...options,
-        });
-      },
-      remove(name: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value: '',
-          ...options,
-          maxAge: 0,
-        });
-      },
-    },
-  });  await supabase.auth.signOut();
+  }
+
+  const cookieStore = await cookies();
+  const supabase = createSupabaseForAction(supabaseUrl, supabaseKey, cookieStore);
+
+  await supabase.auth.signOut();
   redirect('/');
 }

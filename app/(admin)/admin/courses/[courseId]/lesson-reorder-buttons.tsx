@@ -2,10 +2,9 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { moveLesson } from './actions';
+import { ReorderControls } from '@/components/admin/ReorderControls';
 
 type LessonReorderButtonsProps = {
   lessonId: string;
@@ -30,35 +29,17 @@ export function LessonReorderButtons({ lessonId, canMoveUp, canMoveDown }: Lesso
   };
 
   return (
-    <div
-      className="flex shrink-0 flex-col gap-px"
-      role="group"
-      aria-label="Reordenar esta lección en el módulo"
-    >
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-        disabled={!canMoveUp || pending}
-        onClick={() => run('up')}
-        title="Mover la lección hacia arriba en el módulo"
-      >
-        <ChevronUp className="h-4 w-4" aria-hidden />
-        <span className="sr-only">Mover lección hacia arriba</span>
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:bg-muted hover:text-foreground"
-        disabled={!canMoveDown || pending}
-        onClick={() => run('down')}
-        title="Mover la lección hacia abajo en el módulo"
-      >
-        <ChevronDown className="h-4 w-4" aria-hidden />
-        <span className="sr-only">Mover lección hacia abajo</span>
-      </Button>
-    </div>
+    <ReorderControls
+      pending={pending}
+      canMoveUp={canMoveUp}
+      canMoveDown={canMoveDown}
+      onMoveUp={() => run('up')}
+      onMoveDown={() => run('down')}
+      labels={{
+        group: 'Reordenar esta lección en el módulo',
+        moveUp: 'Subir lección',
+        moveDown: 'Bajar lección',
+      }}
+    />
   );
 }

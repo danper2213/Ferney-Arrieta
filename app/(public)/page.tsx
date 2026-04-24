@@ -2,9 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import Image from 'next/image';
 import { generateBunnyToken } from '@/lib/bunny/token';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { MarketingVideoCard } from '@/components/landing/MarketingVideoCard';
 import { PaymentModal } from '@/components/landing/PaymentModal';
 import {
@@ -31,8 +29,14 @@ const ACCENT = 'text-blue-400';
 const ACCENT_BG = 'bg-blue-600 hover:bg-blue-500';
 const ACCENT_BORDER = 'border-blue-500/50';
 
-// Imagen de fondo del Hero (`public/fer_bg.jpeg`)
-const HERO_BG_IMAGE = '/fer_bg.jpeg';
+// Imagen de fondo del Hero (`public/welcome.png`)
+const HERO_BG_IMAGE = '/welcome.png';
+
+/** Márgenes horizontales y ancho máx. alineados con «Programas destacados» */
+const LANDING_SECTION_INNER =
+  'container mx-auto max-w-6xl px-3 sm:px-4 md:px-6';
+/** Padding vertical homogéneo entre secciones */
+const LANDING_SECTION_Y = 'py-12 sm:py-16 md:py-20';
 
 function buildWhatsAppUrl(courseTitle: string, whatsappNumber: string): string {
   const num = (whatsappNumber || (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '')).replace(/\D/g, '');
@@ -46,7 +50,7 @@ const FEATURES = [
     icon: Music,
     title: 'Técnica Sólida',
     description:
-      'Programas estructurados paso a paso para que domines el acordeón con bases que perduran.',
+      'Programas estructurados paso a paso para consolidar bases que perduran.',
   },
   {
     icon: Brain,
@@ -110,7 +114,7 @@ export default async function LandingPage() {
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ??
     '';
 
-  const libraryId = process.env.BUNNY_LIBRARY_ID ?? '';
+  const libraryId = (process.env.BUNNY_LIBRARY_ID ?? '').split('#')[0].trim();
   const marketingVideos = (marketingVideosRaw ?? []).map((video) => {
     const providerId = (video as { video_provider_id?: string }).video_provider_id;
     const tokenResult = providerId ? generateBunnyToken(providerId, 3600) : null;
@@ -118,7 +122,7 @@ export default async function LandingPage() {
     const embedUrl =
       signedUrl ||
       (providerId && libraryId
-        ? `https://iframe.mediadelivery.net/embed/${libraryId}/${providerId}`
+        ? `https://player.mediadelivery.net/embed/${libraryId}/${providerId}`
         : '');
     return {
       id: (video as { id: string }).id,
@@ -142,66 +146,114 @@ export default async function LandingPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      {/* ——— Hero Section ——— */}
+      {/* ——— Hero: welcome completa en cualquier pantalla (object-contain) ——— */}
+      <section className="relative isolate box-border h-[100svh] min-h-[320px] w-full overflow-hidden bg-black">
+        <div className="absolute inset-3 sm:inset-4 md:inset-6">
+          <Image
+            src={HERO_BG_IMAGE}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-contain object-center"
+          />
+        </div>
+      </section>
+
+      {/* ——— Nuestros Programas Destacados ——— */}
       <section
-        className="relative flex min-h-[85vh] items-center justify-center overflow-hidden bg-slate-950 bg-no-repeat [background-size:cover] [background-position:center_18%] sm:[background-position:center_22%] lg:[background-position:center_26%]"
-        style={{ backgroundImage: `url(${HERO_BG_IMAGE})` }}
+        id="programas"
+        className={cn('border-t border-slate-800/80 bg-slate-900', LANDING_SECTION_Y)}
       >
-        <div className="absolute inset-0 bg-black/60" />
-        <div className="container relative z-10 mx-auto px-4 py-20 sm:py-28 md:py-32">
-          <div className="mx-auto max-w-3xl space-y-8 text-center">
-            <Badge
-              className={cn(
-                'border-blue-500/50 bg-blue-500/20 px-3 py-1.5 text-blue-300',
-                ACCENT
-              )}
-            >
-              Aprende a tu ritmo
-            </Badge>
-            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-              Domina el{' '}
-              <span className="text-blue-400">Acordeón</span>
-              {' '}y tu{' '}
-              <span className="text-blue-400">Mentalidad</span>
-            </h1>
-            <p className="mx-auto max-w-2xl text-lg text-slate-300 sm:text-xl leading-relaxed">
-              Aprende con programas estructurados, mejora tu técnica y desarrolla
-              la mentalidad que necesitas para destacar.
-            </p>
-            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <Link
-                href="#programas"
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-medium text-white transition-colors',
-                  ACCENT_BG
-                )}
-              >
-                Explorar Programas
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              {user ? (
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center rounded-lg border border-slate-400/60 bg-transparent px-6 py-3 text-base font-medium text-white hover:bg-white/10 transition-colors"
-                >
-                  Ir al Dashboard
-                </Link>
-              ) : (
-                <Link
-                  href="/login"
-                  className="inline-flex items-center rounded-lg border border-slate-400/60 bg-transparent px-6 py-3 text-base font-medium text-white hover:bg-white/10 transition-colors"
-                >
-                  Iniciar sesión
-                </Link>
-              )}
+        <div className={LANDING_SECTION_INNER}>
+          <h2 className="mb-2 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+            Nuestros Programas Destacados
+          </h2>
+          <p className="mx-auto mb-8 max-w-2xl px-1 text-center text-sm text-slate-400 sm:mb-10 sm:text-base md:mb-12">
+            Cursos diseñados para llevarte paso a paso desde lo básico hasta el nivel que buscas.
+          </p>
+
+          {courseList.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 py-12 sm:rounded-2xl sm:py-14">
+              <BookOpen className="mb-3 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
+              <p className="text-sm text-slate-400 sm:text-base">Próximamente nuevos programas.</p>
             </div>
-          </div>
+          ) : (
+            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 md:gap-5 lg:grid-cols-3">
+              {courseList.map((course) => {
+                const isEnrolled = enrolledCourseIds.includes(course.id);
+                return (
+                  <Card
+                    key={course.id}
+                    className={cn(
+                      'flex w-full flex-col overflow-hidden border-slate-700/50 bg-slate-950 transition-all hover:border-blue-500/40',
+                      ACCENT_BORDER
+                    )}
+                  >
+                    <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-slate-800 sm:aspect-[5/3]">
+                      {course.thumbnail_url ? (
+                        <img
+                          src={course.thumbnail_url}
+                          alt={course.title}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <BookOpen className="h-10 w-10 text-slate-600 sm:h-12 sm:w-12" />
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="space-y-1 p-3 pb-2 sm:p-4 sm:pb-2">
+                      <CardTitle className="text-base font-semibold leading-snug text-white line-clamp-2 sm:text-lg">
+                        {course.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-1 flex-col gap-3 p-3 pt-0 sm:gap-3 sm:p-4 sm:pt-0">
+                      <p className="line-clamp-2 flex-1 text-xs leading-relaxed text-slate-400 sm:line-clamp-3 sm:text-sm">
+                        {course.description}
+                      </p>
+                      {isEnrolled ? (
+                        <Link
+                          href={`/course/${course.slug}`}
+                          className={cn(
+                            'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors sm:py-2.5',
+                            ACCENT_BG
+                          )}
+                        >
+                          Ir al Aula
+                          <span aria-hidden>▶️</span>
+                        </Link>
+                      ) : course.payment_link?.trim() ? (
+                        <PaymentModal
+                          courseTitle={course.title}
+                          paymentLink={course.payment_link}
+                          userEmail={user?.email ?? null}
+                          whatsappNumber={whatsappNumber || null}
+                          triggerClassName="px-3 py-2 text-sm sm:py-2.5"
+                        />
+                      ) : (
+                        <a
+                          href={buildWhatsAppUrl(course.title, whatsappNumber)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A] sm:py-2.5"
+                        >
+                          <MessageCircle className="h-4 w-4 shrink-0" />
+                          Comprar por WhatsApp
+                        </a>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
       {/* ——— Lo Que Nos Hace Diferentes ——— */}
-      <section className="bg-slate-900 py-20 sm:py-28">
-        <div className="container mx-auto px-4">
+      <section className={cn('bg-slate-900', LANDING_SECTION_Y)}>
+        <div className={LANDING_SECTION_INNER}>
           <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Lo Que Nos Hace Diferentes
           </h2>
@@ -235,8 +287,8 @@ export default async function LandingPage() {
       </section>
 
       {/* ——— Sobre el Método (Imagen + Texto) ——— */}
-      <section className="bg-black py-20 sm:py-28">
-        <div className="container mx-auto px-4">
+      <section className={cn('bg-black', LANDING_SECTION_Y)}>
+        <div className={LANDING_SECTION_INNER}>
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             {/* Opcional: añade tu foto con style={{ backgroundImage: 'url(/instructor.jpg)' }} en el div interior */}
             <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
@@ -286,96 +338,9 @@ export default async function LandingPage() {
         </div>
       </section>
 
-      {/* ——— Nuestros Programas Destacados ——— */}
-      <section id="programas" className="bg-slate-900 py-20 sm:py-28">
-        <div className="container mx-auto px-4">
-          <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Nuestros Programas Destacados
-          </h2>
-          <p className="mx-auto mb-14 max-w-2xl text-center text-slate-400 text-lg">
-            Cursos diseñados para llevarte paso a paso desde lo básico hasta el nivel que buscas.
-          </p>
-
-          {courseList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/50 bg-slate-950 py-16">
-              <BookOpen className="mb-4 h-12 w-12 text-slate-500" />
-              <p className="text-slate-400">Próximamente nuevos programas.</p>
-            </div>
-          ) : (
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {courseList.map((course) => {
-                const isEnrolled = enrolledCourseIds.includes(course.id);
-                return (
-                  <Card
-                    key={course.id}
-                    className={cn(
-                      'overflow-hidden border-slate-700/50 bg-slate-950 transition-all hover:border-blue-500/40 flex flex-col',
-                      ACCENT_BORDER
-                    )}
-                  >
-                    <div className="aspect-video relative shrink-0 bg-slate-800">
-                      {course.thumbnail_url ? (
-                        <img
-                          src={course.thumbnail_url}
-                          alt={course.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <BookOpen className="h-14 w-14 text-slate-600" />
-                        </div>
-                      )}
-                    </div>
-                    <CardHeader>
-                      <CardTitle className="text-xl text-white line-clamp-2">
-                        {course.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-1 flex-col gap-4">
-                      <p className="line-clamp-3 flex-1 text-sm text-slate-400">
-                        {course.description}
-                      </p>
-                      {isEnrolled ? (
-                        <Link
-                          href={`/course/${course.slug}`}
-                          className={cn(
-                            'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white transition-colors',
-                            ACCENT_BG
-                          )}
-                        >
-                          Ir al Aula
-                          <span aria-hidden>▶️</span>
-                        </Link>
-                      ) : course.payment_link?.trim() ? (
-                        <PaymentModal
-                          courseTitle={course.title}
-                          paymentLink={course.payment_link}
-                          userEmail={user?.email ?? null}
-                          whatsappNumber={whatsappNumber || null}
-                        />
-                      ) : (
-                        <a
-                          href={buildWhatsAppUrl(course.title, whatsappNumber)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white bg-[#25D366] hover:bg-[#20BD5A] transition-colors"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          Comprar por WhatsApp
-                        </a>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
       {/* ——— Contenido Gratuito (Videos) ——— */}
-      <section className="border-t border-slate-800 bg-slate-950 py-20 sm:py-28">
-        <div className="container mx-auto px-4">
+      <section className={cn('border-t border-slate-800 bg-slate-950', LANDING_SECTION_Y)}>
+        <div className={LANDING_SECTION_INNER}>
           <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Contenido Gratuito
           </h2>
@@ -401,8 +366,8 @@ export default async function LandingPage() {
       </section>
 
       {/* ——— Footer ——— */}
-      <footer className="border-t border-slate-800 bg-black py-12 sm:py-16">
-        <div className="container mx-auto px-4">
+      <footer className={cn('border-t border-slate-800 bg-black', LANDING_SECTION_Y)}>
+        <div className={LANDING_SECTION_INNER}>
           <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex flex-col gap-4">
               <Link href="/" className="inline-block" aria-label="Inicio">

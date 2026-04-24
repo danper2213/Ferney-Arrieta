@@ -1,7 +1,7 @@
 'use server';
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createSupabaseForAction } from '@/lib/supabase/action-client';
 import { redirect } from 'next/navigation';
 
 export type RegisterState = {
@@ -51,29 +51,7 @@ export async function register(
   }
 
   const cookieStore = await cookies();
-
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name: string, value: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value,
-          ...options,
-        });
-      },
-      remove(name: string, options: CookieOptions) {
-        cookieStore.set({
-          name,
-          value: '',
-          ...options,
-          maxAge: 0,
-        });
-      },
-    },
-  });
+  const supabase = createSupabaseForAction(supabaseUrl, supabaseKey, cookieStore);
 
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
