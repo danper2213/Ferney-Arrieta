@@ -148,7 +148,7 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ——— Hero: welcome completa en cualquier pantalla (object-contain) ——— */}
       <section className="relative isolate box-border h-[100svh] min-h-[320px] w-full overflow-hidden bg-black">
-        <div className="absolute inset-3 sm:inset-4 md:inset-6">
+        <div className="absolute inset-6 sm:inset-10 md:inset-14 lg:inset-[4.5rem]">
           <Image
             src={HERO_BG_IMAGE}
             alt=""

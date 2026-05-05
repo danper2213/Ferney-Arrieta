@@ -5,6 +5,26 @@ function normalizeLibraryId(): string {
 }
 
 /**
+ * Bunny exige solo el GUID del vídeo. A veces en BD se guarda la URL completa del embed;
+ * eso produce URLs rotas y 404 en el reproductor.
+ */
+export function normalizeBunnyVideoId(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  const fromEmbedPath = s.match(/\/embed\/\d+\/([a-f0-9-]{36})/i);
+  if (fromEmbedPath) {
+    return fromEmbedPath[1].toLowerCase();
+  }
+  const looseGuid = s.match(
+    /\b([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\b/i
+  );
+  if (looseGuid) {
+    return looseGuid[1].toLowerCase();
+  }
+  return s;
+}
+
+/**
  * Host del iframe: el reproductor actual usa `player.mediadelivery.net` (docs Bunny Stream).
  * `iframe.mediadelivery.net` sigue existiendo para bibliotecas legacy; si hace falta, sobreescribe con BUNNY_EMBED_HOST.
  */
@@ -26,6 +46,7 @@ export function generateBunnyToken(
   videoId: string,
   expirationSeconds: number = 3600
 ): { token: string; expires: number; embedUrl: string } | { error: string } {
+  const resolvedVideoId = normalizeBunnyVideoId(videoId);
   const securityKey = (process.env.BUNNY_SECURITY_KEY ?? '').trim();
   const libraryId = normalizeLibraryId();
 
@@ -33,7 +54,7 @@ export function generateBunnyToken(
     return { error: 'BUNNY_LIBRARY_ID no está configurada' };
   }
 
-  const baseUrl = embedBaseUrl(libraryId, videoId);
+  const baseUrl = embedBaseUrl(libraryId, resolvedVideoId);
 
   // Sin clave de firma: embed sin token (solo válido si "Embed view token authentication" está desactivado en Bunny)
   if (!securityKey) {
@@ -49,7 +70,7 @@ export function generateBunnyToken(
   const expires = Math.floor(Date.now() / 1000) + expirationSeconds;
 
   // Generar token: SHA256(security_key + video_id + expires)
-  const signatureString = `${securityKey}${videoId}${expires}`;
+  const signatureString = `${securityKey}${resolvedVideoId}${expires}`;
   const token = createHash('sha256').update(signatureString).digest('hex');
 
   const embedUrl = `${baseUrl}?token=${encodeURIComponent(token)}&expires=${expires}`;
