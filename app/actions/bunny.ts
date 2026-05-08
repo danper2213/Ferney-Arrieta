@@ -1,6 +1,7 @@
 'use server';
 
 import { createHash } from 'node:crypto';
+import { normalizeBunnyVideoId } from '@/lib/bunny/token';
 
 const BUNNY_API_URL = 'https://video.bunnycdn.com';
 
@@ -94,12 +95,18 @@ export async function deleteBunnyVideo(videoGuid: string): Promise<DeleteBunnyVi
     };
   }
 
-  if (!videoGuid?.trim()) {
+  const raw = videoGuid?.trim() ?? '';
+  if (!raw) {
     return { success: false, error: 'No se recibió el ID del video' };
   }
 
+  const guid = normalizeBunnyVideoId(raw);
+  if (!guid) {
+    return { success: false, error: 'ID de video inválido' };
+  }
+
   try {
-    const deleteRes = await fetch(`${BUNNY_API_URL}/library/${libraryId}/videos/${videoGuid}`, {
+    const deleteRes = await fetch(`${BUNNY_API_URL}/library/${libraryId}/videos/${guid}`, {
       method: 'DELETE',
       headers: {
         Accept: 'application/json',
@@ -109,6 +116,12 @@ export async function deleteBunnyVideo(videoGuid: string): Promise<DeleteBunnyVi
 
     if (!deleteRes.ok) {
       const text = await deleteRes.text();
+      // 404: el recurso ya no está en esta librería (borrado manual, otra cuenta, GUID erróneo ya limpio).
+      // Idempotente: permitimos seguir y quitar la referencia en Supabase.
+      if (deleteRes.status === 404) {
+        console.warn('Bunny delete video 404 (no encontrado), se trata como ya eliminado:', guid, text);
+        return { success: true };
+      }
       console.error('Bunny delete video failed:', deleteRes.status, text);
       return {
         success: false,
