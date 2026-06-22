@@ -60,16 +60,22 @@ export function CourseSidebar({
   return (
     <div className="flex h-full flex-col">
       {/* Barra de Progreso */}
-      <div className="p-4 border-b space-y-3">
-        <p className="text-sm font-medium">
-          Progreso del curso
-        </p>
-        <div className="w-full">
-          <Progress value={progressPercent} className="h-2.5 w-full" />
+      <div className="border-b bg-primary/5 p-4 space-y-3">
+        <div className="flex items-end justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-primary/80">
+              Progreso del curso
+            </p>
+            <p className="text-2xl font-bold tabular-nums text-primary">{progressPercent}%</p>
+          </div>
+          <p className="pb-0.5 text-xs text-muted-foreground">
+            {completedCount}/{totalLessons} lecciones
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          {completedCount} de {totalLessons} lecciones completadas ({progressPercent}%)
-        </p>
+        <Progress
+          value={progressPercent}
+          className="h-2.5 w-full bg-primary/10 [&>[data-slot=progress-indicator]]:bg-primary"
+        />
       </div>
 
       {/* Módulos y Lecciones */}

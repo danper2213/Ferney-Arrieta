@@ -5,13 +5,16 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { CourseSidebar, type CourseSidebarProps } from './CourseSidebar';
+import { CourseAccessBanner } from './CourseAccessBanner';
 
 type CourseLayoutShellProps = CourseSidebarProps & {
   children: React.ReactNode;
+  accessExpiresAt?: string | null;
 };
 
 export function CourseLayoutShell({
   children,
+  accessExpiresAt = null,
   ...sidebarProps
 }: CourseLayoutShellProps) {
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -51,6 +54,7 @@ export function CourseLayoutShell({
 
         {/* Page Content */}
         <main className="flex-1">
+          <CourseAccessBanner expiresAt={accessExpiresAt} />
           {children}
         </main>
       </div>

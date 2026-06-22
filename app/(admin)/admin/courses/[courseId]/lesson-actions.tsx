@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { deleteLesson, removeLessonVideo, type CourseMutationState, updateLesson } from './actions';
+import { LessonVideoMosaic } from '@/components/admin/LessonVideoMosaic';
 import { MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,6 +30,7 @@ type LessonActionsProps = {
   description: string;
   daysToUnlock: number;
   videoEmbedUrl?: string | null;
+  videoThumbnailUrl?: string | null;
 };
 
 export function LessonActions({
@@ -37,6 +39,7 @@ export function LessonActions({
   description,
   daysToUnlock,
   videoEmbedUrl,
+  videoThumbnailUrl,
 }: LessonActionsProps) {
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
@@ -222,6 +225,17 @@ export function LessonActions({
                 defaultValue={String(daysToUnlock)}
               />
             </div>
+            {videoEmbedUrl && (
+              <div className="space-y-2">
+                <Label>Video de la clase</Label>
+                <LessonVideoMosaic
+                  title={title}
+                  embedUrl={videoEmbedUrl}
+                  thumbnailUrl={videoThumbnailUrl}
+                  compact
+                />
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpenEdit(false)}>
                 Cancelar

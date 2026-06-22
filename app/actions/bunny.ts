@@ -1,6 +1,8 @@
 'use server';
 
 import { createHash } from 'node:crypto';
+import { cache } from 'react';
+import { resolveBunnyVideoThumbnailUrl as resolveThumbnail } from '@/lib/bunny/thumbnail';
 import { normalizeBunnyVideoId } from '@/lib/bunny/token';
 
 const BUNNY_API_URL = 'https://video.bunnycdn.com';
@@ -138,3 +140,10 @@ export async function deleteBunnyVideo(videoGuid: string): Promise<DeleteBunnyVi
     };
   }
 }
+
+/**
+ * Resuelve la URL del thumbnail de un video en Bunny Stream (cacheada por request).
+ */
+export const resolveBunnyVideoThumbnailUrl = cache(
+  async (videoGuid: string): Promise<string | null> => resolveThumbnail(videoGuid)
+);

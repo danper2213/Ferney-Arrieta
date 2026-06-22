@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { grantEnrollment, revokeEnrollment } from '@/app/actions/admin/enrollments';
+import { resolveDefaultAccessDays } from '@/lib/enrollment-access';
 
 export type DeleteStudentResult = { success: true } | { error: string };
 
@@ -136,29 +138,17 @@ export async function toggleEnrollment(
   courseId: string,
   isActive: boolean
 ) {
-  const supabase = await createClient();
-
   if (isActive) {
-    const { error } = await supabase.from('enrollments').insert({
-      user_id: userId,
-      course_id: courseId,
-    });
-    if (error) {
-      console.error('Error al inscribir:', error);
-      return { error: error.message };
-    }
-  } else {
-    const { error } = await supabase
-      .from('enrollments')
-      .delete()
-      .eq('user_id', userId)
-      .eq('course_id', courseId);
-    if (error) {
-      console.error('Error al quitar inscripción:', error);
-      return { error: error.message };
-    }
+    const supabase = await createClient();
+    const { data: course } = await supabase
+      .from('courses')
+      .select('default_access_days')
+      .eq('id', courseId)
+      .maybeSingle();
+    const days = resolveDefaultAccessDays(
+      (course as { default_access_days?: number | null } | null)?.default_access_days
+    );
+    return grantEnrollment(userId, courseId, days);
   }
-
-  revalidatePath('/admin/students');
-  return { success: true };
+  return revokeEnrollment(userId, courseId);
 }

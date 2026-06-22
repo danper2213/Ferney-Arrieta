@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { CourseLayoutShell } from '@/components/student/CourseLayoutShell';
+import { CourseAccessExpired } from '@/components/student/CourseAccessExpired';
+import { isEnrollmentActive } from '@/lib/enrollment-access';
+import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 
 type CourseSidebarModule = {
   id: string;
@@ -47,15 +50,38 @@ export default async function CourseLayout({
   }
 
   // 3. Verificar inscripción
-  const { data: enrollment, error: enrollmentError } = await supabase
+  const { data: enrollmentWithExpiry, error: enrollmentError } = await supabase
     .from('enrollments')
-    .select('id, created_at')
+    .select('id, created_at, expires_at')
     .eq('user_id', user.id)
     .eq('course_id', course.id)
     .maybeSingle();
 
-  if (enrollmentError || !enrollment) {
+  let enrollment: { id: string; created_at: string } | null = null;
+  let expiresAt: string | null = null;
+
+  if (enrollmentError && isMissingColumnError(enrollmentError)) {
+    const { data: enrollmentFallback, error: fallbackError } = await supabase
+      .from('enrollments')
+      .select('id, created_at')
+      .eq('user_id', user.id)
+      .eq('course_id', course.id)
+      .maybeSingle();
+    if (fallbackError || !enrollmentFallback) {
+      redirect('/dashboard?error=No tienes acceso a este curso');
+    }
+    enrollment = enrollmentFallback;
+  } else if (enrollmentError || !enrollmentWithExpiry) {
     redirect('/dashboard?error=No tienes acceso a este curso');
+  } else {
+    enrollment = enrollmentWithExpiry;
+    expiresAt = (enrollmentWithExpiry as { expires_at?: string | null }).expires_at ?? null;
+  }
+
+  if (!isEnrollmentActive(expiresAt)) {
+    return (
+      <CourseAccessExpired courseTitle={course.title} expiresAt={expiresAt} />
+    );
   }
 
   // 4. Obtener módulos con lecciones
@@ -132,6 +158,7 @@ export default async function CourseLayout({
       completedLessonIds={completedLessonIds}
       lockedLessonIds={Array.from(lockedLessonIds)}
       totalLessons={totalLessons}
+      accessExpiresAt={expiresAt}
     >
       {children}
     </CourseLayoutShell>

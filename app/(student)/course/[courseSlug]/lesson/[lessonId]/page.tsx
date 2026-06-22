@@ -8,6 +8,13 @@ import { Badge } from '@/components/ui/badge';
 import { Lock, ChevronLeft, Calendar, Clock, ArrowLeft } from 'lucide-react';
 import { CommentsSection } from '@/components/student/CommentsSection';
 import { MarkAsViewedButton } from '@/components/student/MarkAsViewedButton';
+import { CourseMotivationalBanner } from '@/components/student/CourseMotivationalBanner';
+import {
+  LessonResourcesSection,
+  type LessonResourceWithUrl,
+} from '@/components/student/LessonResourcesSection';
+import { LESSON_RESOURCES_BUCKET, type LessonResource } from '@/lib/lesson-resources';
+import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 
 type LessonWithModule = {
   id: string;
@@ -17,6 +24,7 @@ type LessonWithModule = {
   days_to_unlock: number;
   order_index: number;
   module_id: string;
+  motivational_message?: string | null;
   modules: {
     id: string;
     title: string;
@@ -74,10 +82,24 @@ export default async function StudentLessonPage({
   }
 
   // 4. Obtener la lección con información del módulo
-  const { data: lesson, error: lessonError } = await supabase
-    .from('lessons')
-    .select(
-      `
+  const lessonSelectWithMessage = `
+      id,
+      title,
+      description,
+      video_provider_id,
+      days_to_unlock,
+      order_index,
+      module_id,
+      motivational_message,
+      modules!inner (
+        id,
+        title,
+        order_index,
+        course_id
+      )
+    `;
+
+  const lessonSelectBase = `
       id,
       title,
       description,
@@ -91,10 +113,23 @@ export default async function StudentLessonPage({
         order_index,
         course_id
       )
-    `
-    )
+    `;
+
+  let { data: lesson, error: lessonError } = await supabase
+    .from('lessons')
+    .select(lessonSelectWithMessage)
     .eq('id', lessonId)
     .maybeSingle();
+
+  if (lessonError && isMissingColumnError(lessonError)) {
+    const fallback = await supabase
+      .from('lessons')
+      .select(lessonSelectBase)
+      .eq('id', lessonId)
+      .maybeSingle();
+    lesson = fallback.data ? { ...fallback.data, motivational_message: null } : null;
+    lessonError = fallback.error;
+  }
 
   if (lessonError || !lesson) {
     redirect(`/dashboard?error=Lección no encontrada`);
@@ -194,6 +229,33 @@ export default async function StudentLessonPage({
     }
   }
 
+  let lessonResources: LessonResourceWithUrl[] = [];
+
+  if (!isLocked) {
+    const { data: resourcesRaw, error: resourcesError } = await supabase
+      .from('lesson_resources')
+      .select(
+        'id, lesson_id, title, file_name, storage_path, mime_type, resource_type, file_size, order_index'
+      )
+      .eq('lesson_id', lessonId)
+      .order('order_index', { ascending: true });
+
+    if (!resourcesError && resourcesRaw) {
+      lessonResources = await Promise.all(
+        (resourcesRaw as LessonResource[]).map(async (resource) => {
+          const { data: signedData } = await supabase.storage
+            .from(LESSON_RESOURCES_BUCKET)
+            .createSignedUrl(resource.storage_path, 3600);
+
+          return {
+            ...resource,
+            url: signedData?.signedUrl ?? null,
+          };
+        })
+      );
+    }
+  }
+
   // Formatear fecha de desbloqueo
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('es-ES', {
@@ -205,6 +267,7 @@ export default async function StudentLessonPage({
   };
 
   const daysUntilUnlock = Math.ceil((unlockDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const motivationalMessage = lessonData.motivational_message?.trim() ?? '';
 
   return (
     <div className="min-h-screen bg-background">
@@ -315,6 +378,14 @@ export default async function StudentLessonPage({
               )}
             </div>
 
+            {motivationalMessage && (
+              <CourseMotivationalBanner
+                message={motivationalMessage}
+                subtitle={`Inspiración para «${lessonData.title}»`}
+                className="mb-6"
+              />
+            )}
+
             {/* Navegación */}
             <div className="flex items-center justify-between mb-8">
               {prevLesson ? (
@@ -351,6 +422,8 @@ export default async function StudentLessonPage({
                 <p className="text-muted-foreground leading-relaxed">{lessonData.description}</p>
               </CardContent>
             </Card>
+
+            <LessonResourcesSection resources={lessonResources} />
 
             {/* Comentarios */}
             <CommentsSection lessonId={lessonId} courseSlug={courseSlug} comments={comments} />

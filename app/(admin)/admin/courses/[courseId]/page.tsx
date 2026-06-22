@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { buttonVariants } from '@/components/ui/button';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import {
   Accordion,
   AccordionContent,
@@ -14,13 +12,18 @@ import { AddModuleDialog } from './add-module-dialog';
 import { AddLessonDialog } from './add-lesson-dialog';
 import { PublishButton } from './publish-button';
 import { BunnyUploader } from '@/components/admin/BunnyUploader';
-import { BookOpen, Clock, ExternalLink, Video } from 'lucide-react';
+import { LessonVideoMosaic } from '@/components/admin/LessonVideoMosaic';
+import { LessonResourcesManager } from '@/components/admin/LessonResourcesManager';
+import { LessonMotivationalMessageForm } from '@/components/admin/LessonMotivationalMessageForm';
+import { resolveBunnyVideoThumbnailUrl } from '@/app/actions/bunny';
+import { type LessonResource } from '@/lib/lesson-resources';
+import { BookOpen, Paperclip, Video } from 'lucide-react';
 import { ModuleActions } from './module-actions';
 import { ModuleReorderButtons } from './module-reorder-buttons';
 import { LessonActions } from './lesson-actions';
 import { LessonReorderButtons } from './lesson-reorder-buttons';
 import { generateBunnyToken } from '@/lib/bunny/token';
-import { cn } from '@/lib/utils';
+import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 
 type Module = {
   id: string;
@@ -37,6 +40,7 @@ type Lesson = {
   order_index: number;
   video_url?: string | null;
   video_provider_id?: string | null;
+  motivational_message?: string | null;
 };
 
 export default async function CourseEditPage({
@@ -58,11 +62,23 @@ export default async function CourseEditPage({
     notFound();
   }
 
-  // Obtener módulos con sus lecciones (sin video_url si la columna no existe)
-  const { data: modules, error: modulesError } = await supabase
-    .from('modules')
-    .select(
-      `
+  // Obtener módulos con sus lecciones
+  const modulesSelectWithMessage = `
+      id,
+      title,
+      order_index,
+      lessons (
+        id,
+        title,
+        description,
+        days_to_unlock,
+        order_index,
+        video_provider_id,
+        motivational_message
+      )
+    `;
+
+  const modulesSelectBase = `
       id,
       title,
       order_index,
@@ -74,10 +90,23 @@ export default async function CourseEditPage({
         order_index,
         video_provider_id
       )
-    `
-    )
+    `;
+
+  let { data: modules, error: modulesError } = await supabase
+    .from('modules')
+    .select(modulesSelectWithMessage)
     .eq('course_id', courseId)
     .order('order_index', { ascending: true });
+
+  if (modulesError && isMissingColumnError(modulesError)) {
+    const fallback = await supabase
+      .from('modules')
+      .select(modulesSelectBase)
+      .eq('course_id', courseId)
+      .order('order_index', { ascending: true });
+    modules = fallback.data as typeof modules;
+    modulesError = fallback.error;
+  }
 
   // Extraer mensaje real del error (Supabase devuelve objeto con message/details/code)
   if (modulesError) {
@@ -95,6 +124,10 @@ export default async function CourseEditPage({
       const lessonsList = Array.isArray(lessonsRaw) ? lessonsRaw : [];
       const lessons: Lesson[] = lessonsList
         .filter((l): l is Lesson => l != null && typeof l === 'object' && 'id' in l)
+        .map((l) => ({
+          ...l,
+          motivational_message: l.motivational_message ?? null,
+        }))
         .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       return {
         id: mod.id,
@@ -112,6 +145,50 @@ export default async function CourseEditPage({
     if ('error' in tokenResult) return null;
     return tokenResult.embedUrl;
   };
+
+  const lessonsWithVideo = sortedModules.flatMap((module) =>
+    module.lessons.filter((lesson) => lesson.video_provider_id)
+  );
+  const lessonMediaEntries = await Promise.all(
+    lessonsWithVideo.map(async (lesson) => {
+      const embedUrl = getLessonEmbedUrl(lesson.video_provider_id);
+      const thumbnailUrl = lesson.video_provider_id
+        ? await resolveBunnyVideoThumbnailUrl(lesson.video_provider_id)
+        : null;
+      return [lesson.id, { embedUrl, thumbnailUrl }] as const;
+    })
+  );
+  const lessonMedia = Object.fromEntries(lessonMediaEntries) as Record<
+    string,
+    { embedUrl: string | null; thumbnailUrl: string | null }
+  >;
+
+  const allLessonIds = sortedModules.flatMap((module) => module.lessons.map((lesson) => lesson.id));
+  const resourcesByLesson: Record<string, LessonResource[]> = {};
+
+  if (allLessonIds.length > 0) {
+    const { data: resourcesRaw, error: resourcesError } = await supabase
+      .from('lesson_resources')
+      .select(
+        'id, lesson_id, title, file_name, storage_path, mime_type, resource_type, file_size, order_index, created_at'
+      )
+      .in('lesson_id', allLessonIds)
+      .order('order_index', { ascending: true });
+
+    if (resourcesError) {
+      const err = resourcesError as { message?: string; code?: string };
+      if (err.code !== '42P01') {
+        console.error('Error al obtener recursos de lección:', err.message ?? resourcesError);
+      }
+    } else {
+      for (const resource of (resourcesRaw ?? []) as LessonResource[]) {
+        if (!resourcesByLesson[resource.lesson_id]) {
+          resourcesByLesson[resource.lesson_id] = [];
+        }
+        resourcesByLesson[resource.lesson_id].push(resource);
+      }
+    }
+  }
 
   return (
     <div className="container mx-auto py-10 max-w-5xl">
@@ -222,13 +299,16 @@ export default async function CourseEditPage({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <Accordion type="multiple" className="space-y-3">
                       {module.lessons.map((lesson, lessonIndex) => {
-                        const lessonEmbedUrl = getLessonEmbedUrl(lesson.video_provider_id);
+                        const media = lessonMedia[lesson.id];
+                        const lessonEmbedUrl = media?.embedUrl ?? getLessonEmbedUrl(lesson.video_provider_id);
+                        const lessonThumbnailUrl = media?.thumbnailUrl ?? null;
+                        const lessonResources = resourcesByLesson[lesson.id] ?? [];
                         return (
-                        <Card key={lesson.id}>
-                          <Accordion type="single" collapsible>
-                            <div className="flex w-full min-w-0 items-center gap-2 px-4 pt-2">
+                        <Card key={lesson.id} className="overflow-hidden border-border/60 bg-card/50 py-0 shadow-sm">
+                          <AccordionItem value={lesson.id} className="border-0">
+                            <div className="flex w-full min-w-0 items-center gap-2 border-b border-border/40 bg-muted/20 px-3 py-2 sm:px-4">
                               <AccordionTrigger className="min-w-0 flex-1 py-2 hover:no-underline [&>svg]:shrink-0">
                                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left">
                                   <Badge variant="outline" className="shrink-0 font-mono text-xs">
@@ -248,6 +328,13 @@ export default async function CourseEditPage({
                                       Sin video
                                     </Badge>
                                   )}
+                                  {lessonResources.length > 0 && (
+                                    <Badge variant="outline" className="shrink-0">
+                                      <Paperclip className="h-3 w-3 mr-1" />
+                                      {lessonResources.length}{' '}
+                                      {lessonResources.length === 1 ? 'recurso' : 'recursos'}
+                                    </Badge>
+                                  )}
                                 </div>
                               </AccordionTrigger>
                               <div className="ml-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
@@ -262,46 +349,53 @@ export default async function CourseEditPage({
                                   description={lesson.description}
                                   daysToUnlock={lesson.days_to_unlock}
                                   videoEmbedUrl={lessonEmbedUrl}
+                                  videoThumbnailUrl={lessonThumbnailUrl}
                                 />
                               </div>
                             </div>
-                            <AccordionContent>
-                              <CardHeader className="pt-0 pb-3">
-                                <CardDescription className="text-sm">
-                                  {lesson.description}
-                                </CardDescription>
-                              </CardHeader>
-                              <CardContent className="pb-3 space-y-3">
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  <span>
-                                    {lesson.days_to_unlock === 0
-                                      ? 'Disponible inmediatamente'
-                                      : `Se desbloquea en ${lesson.days_to_unlock} ${lesson.days_to_unlock === 1 ? 'día' : 'días'
-                                      }`}
-                                  </span>
-                                </div>
-                                {lessonEmbedUrl && (
-                                  <Link
-                                    href={lessonEmbedUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
-                                  >
-                                    <ExternalLink className="h-4 w-4 mr-2" />
-                                    Ver video
-                                  </Link>
+                            <AccordionContent className="px-0 pb-0">
+                              <div className="space-y-5 px-3 py-4 sm:px-5 sm:py-5">
+                                {lesson.description?.trim() && (
+                                  <p className="text-sm leading-relaxed text-muted-foreground">
+                                    {lesson.description}
+                                  </p>
                                 )}
-                                {!lesson.video_provider_id && !lesson.video_url && (
-                                  <BunnyUploader lessonId={lesson.id} lessonTitle={lesson.title} />
+
+                                <LessonMotivationalMessageForm
+                                  lessonId={lesson.id}
+                                  lessonTitle={lesson.title}
+                                  initialMessage={lesson.motivational_message ?? null}
+                                />
+
+                                {lessonEmbedUrl ? (
+                                  <div className="overflow-hidden rounded-xl border bg-muted/30 shadow-sm">
+                                    <LessonVideoMosaic
+                                      title={lesson.title}
+                                      embedUrl={lessonEmbedUrl}
+                                      thumbnailUrl={lessonThumbnailUrl}
+                                      className="max-w-none"
+                                    />
+                                  </div>
+                                ) : (
+                                  !lesson.video_provider_id &&
+                                  !lesson.video_url && (
+                                    <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+                                      <BunnyUploader lessonId={lesson.id} lessonTitle={lesson.title} />
+                                    </div>
+                                  )
                                 )}
-                              </CardContent>
+
+                                <LessonResourcesManager
+                                  lessonId={lesson.id}
+                                  resources={lessonResources}
+                                />
+                              </div>
                             </AccordionContent>
-                          </Accordion>
+                          </AccordionItem>
                         </Card>
                         );
                       })}
-                    </div>
+                    </Accordion>
                   )}
                 </div>
               </AccordionContent>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table,
@@ -24,8 +24,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ManageAccessDialog } from './ManageAccessDialog';
-import type { StudentRow, CourseOption } from '@/app/(admin)/admin/students/page';
+import { StudentCourseAccessChip } from './StudentCourseAccessChip';
+import type { StudentRow, CourseOption } from '@/lib/admin/students-types';
 import { deleteStudent } from '@/app/(admin)/admin/students/actions';
+import { isEnrollmentActive } from '@/lib/enrollment-access';
 import { Search, Trash2, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -42,19 +44,67 @@ export function StudentsTable({
 }: StudentsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
+  const [studentsState, setStudentsState] = useState(students);
   const [manageUserId, setManageUserId] = useState<string | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<StudentRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    if (!manageUserId) {
+      setStudentsState(students);
+    }
+  }, [students, manageUserId]);
+
+  const handleEnrollmentChange = useCallback(
+    (
+      userId: string,
+      courseId: string,
+      update: { expiresAt: string | null; removed?: boolean; createdAt?: string }
+    ) => {
+      setStudentsState((prev) =>
+        prev.map((s) => {
+          if (s.id !== userId) return s;
+          if (update.removed) {
+            return {
+              ...s,
+              enrollments: s.enrollments.filter((e) => e.courseId !== courseId),
+            };
+          }
+          const exists = s.enrollments.some((e) => e.courseId === courseId);
+          if (exists) {
+            return {
+              ...s,
+              enrollments: s.enrollments.map((e) =>
+                e.courseId === courseId ? { ...e, expiresAt: update.expiresAt } : e
+              ),
+            };
+          }
+          return {
+            ...s,
+            enrollments: [
+              ...s.enrollments,
+              {
+                courseId,
+                expiresAt: update.expiresAt,
+                createdAt: update.createdAt ?? new Date().toISOString(),
+              },
+            ],
+          };
+        })
+      );
+    },
+    []
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter(
+    if (!q) return studentsState;
+    return studentsState.filter(
       (s) =>
         (s.email?.toLowerCase().includes(q) ?? false) ||
         (s.displayName?.toLowerCase().includes(q) ?? false)
     );
-  }, [students, search]);
+  }, [studentsState, search]);
 
   const handleCloseManage = () => {
     setManageUserId(null);
@@ -62,7 +112,8 @@ export function StudentsTable({
   };
 
   const studentToManage = manageUserId
-    ? students.find((s) => s.id === manageUserId)
+    ? studentsState.find((s) => s.id === manageUserId) ??
+      students.find((s) => s.id === manageUserId)
     : null;
 
   const handleConfirmDelete = async () => {
@@ -99,95 +150,109 @@ export function StudentsTable({
       {filtered.length === 0 ? (
         <div className="rounded-lg border border-muted bg-muted/30 p-6 text-center space-y-2">
           <p className="text-muted-foreground font-medium">
-            {students.length === 0
+            {studentsState.length === 0
               ? 'No se encontraron estudiantes.'
               : 'Ningún alumno coincide con la búsqueda.'}
           </p>
-          {students.length === 0 && (
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Comprueba que hayas iniciado sesión como <strong>master</strong>, que la migración de RLS en <code className="text-xs bg-muted px-1 rounded">profiles</code> esté aplicada (el master debe poder leer todos los perfiles) y que existan usuarios con rol <code className="text-xs bg-muted px-1 rounded">student</code> en la tabla profiles.
-            </p>
-          )}
         </div>
       ) : (
-        <div className="rounded-md border overflow-hidden">
+        <div className="rounded-md border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Estudiante</TableHead>
-                <TableHead>Fecha Registro</TableHead>
-                <TableHead>Cursos Activos</TableHead>
-                <TableHead className="min-w-[240px] w-[1%] whitespace-nowrap text-right">Acciones</TableHead>
+                <TableHead className="min-w-[200px]">Estudiante</TableHead>
+                <TableHead className="whitespace-nowrap">Registro</TableHead>
+                <TableHead className="min-w-[280px]">Acceso a cursos</TableHead>
+                <TableHead className="min-w-[160px] text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={undefined} alt="" />
-                        <AvatarFallback className="text-xs bg-muted">
-                          {(student.displayName ?? student.email ?? 'U').slice(0, 1).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">
-                          {student.displayName ?? 'Sin nombre'}
-                        </p>
-                        {student.email && (
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
-                        )}
+              {filtered.map((student) => {
+                const activeEnrollments = student.enrollments.filter((e) =>
+                  isEnrollmentActive(e.expiresAt)
+                );
+                return (
+                  <TableRow key={student.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-9 w-9">
+                          <AvatarImage src={undefined} alt="" />
+                          <AvatarFallback className="text-xs bg-muted">
+                            {(student.displayName ?? student.email ?? 'U')
+                              .slice(0, 1)
+                              .toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {student.displayName ?? 'Sin nombre'}
+                          </p>
+                          {student.email && (
+                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {new Date(student.createdAt).toLocaleDateString('es-ES', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {student.enrolledCourseIds.length === 0 ? (
-                        <span className="text-muted-foreground text-sm">Sin acceso</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                      {new Date(student.createdAt).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      {student.enrollments.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">Sin acceso</span>
                       ) : (
-                        student.enrolledCourseIds.map((courseId) => (
-                          <Badge key={courseId} variant="secondary" className="text-xs">
-                            {courseTitlesById[courseId] ?? courseId}
-                          </Badge>
-                        ))
+                        <div className="flex flex-wrap gap-2">
+                          {student.enrollments.map((enrollment) => (
+                            <StudentCourseAccessChip
+                              key={enrollment.courseId}
+                              courseTitle={
+                                courseTitlesById[enrollment.courseId] ?? enrollment.courseId
+                              }
+                              expiresAt={enrollment.expiresAt}
+                            />
+                          ))}
+                        </div>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 shrink-0"
-                        onClick={() => setManageUserId(student.id)}
-                      >
-                        <UserCog className="h-3.5 w-3.5" />
-                        Gestionar Acceso
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
-                        onClick={() => setStudentToDelete(student)}
-                        title="Eliminar estudiante"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span className="sr-only">Eliminar estudiante</span>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => setManageUserId(student.id)}
+                        >
+                          <UserCog className="h-3.5 w-3.5" />
+                          Gestionar
+                          {activeEnrollments.length > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="ml-0.5 h-5 min-w-5 rounded-full px-1.5 text-[10px]"
+                            >
+                              {activeEnrollments.length}
+                            </Badge>
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => setStudentToDelete(student)}
+                          title="Eliminar estudiante"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="sr-only">Eliminar estudiante</span>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
@@ -199,11 +264,14 @@ export function StudentsTable({
           onOpenChange={(open) => !open && handleCloseManage()}
           student={studentToManage}
           courses={courses}
-          enrolledCourseIds={studentToManage.enrolledCourseIds}
+          onEnrollmentChange={handleEnrollmentChange}
         />
       )}
 
-      <AlertDialog open={studentToDelete !== null} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+      <AlertDialog
+        open={studentToDelete !== null}
+        onOpenChange={(open) => !open && setStudentToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar estudiante?</AlertDialogTitle>
@@ -212,8 +280,7 @@ export function StudentsTable({
               <span className="font-medium text-foreground">
                 {studentToDelete?.displayName ?? studentToDelete?.email ?? 'este alumno'}
               </span>
-              . El perfil dejará de aparecer en la lista. La cuenta en autenticación puede seguir existiendo en
-              Supabase hasta que la elimines desde el panel de Auth si lo necesitas.
+              .
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { deleteBunnyVideo } from '@/app/actions/bunny';
+import { deleteLessonResourcesForLesson } from '@/lib/lesson-resources';
 
 export type CreateModuleState = {
   error?: string;
@@ -699,6 +700,8 @@ export async function deleteLesson(
       .select('course_id')
       .eq('id', lesson.module_id)
       .maybeSingle();
+
+    await deleteLessonResourcesForLesson(supabase, lessonId);
 
     const { error: deleteError } = await supabase
       .from('lessons')

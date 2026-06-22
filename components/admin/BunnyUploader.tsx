@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import * as tus from 'tus-js-client';
 import { toast } from 'sonner';
 import { createVideoEntry } from '@/app/actions/bunny';
@@ -18,6 +19,7 @@ type BunnyUploaderProps = {
 };
 
 export function BunnyUploader({ lessonId, lessonTitle = '', disabled, className }: BunnyUploaderProps) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -92,6 +94,7 @@ export function BunnyUploader({ lessonId, lessonTitle = '', disabled, className 
 
           setError(null);
           toast.success('Video subido correctamente');
+          router.refresh();
           resolve();
         },
       });
