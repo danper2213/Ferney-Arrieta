@@ -80,24 +80,43 @@ const METHOD_BENEFITS = [
   'Combinación de técnica y desarrollo personal',
 ];
 
+type PublishedCourseRow = {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  thumbnail_url: string | null;
+  payment_link: string | null;
+  program_content?: string | null;
+};
+
 export default async function LandingPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  let { data: courses = [], error: coursesError } = await supabase
+  let courses: PublishedCourseRow[] = [];
+  let coursesError: { message?: string; code?: string } | null = null;
+
+  const { data: coursesWithProgram, error: coursesWithProgramError } = await supabase
     .from('courses')
     .select('id, title, slug, description, thumbnail_url, payment_link, program_content')
     .eq('is_published', true)
     .order('created_at', { ascending: false });
 
-  if (coursesError && isMissingColumnError(coursesError)) {
+  if (coursesWithProgramError && isMissingColumnError(coursesWithProgramError)) {
     const fallback = await supabase
       .from('courses')
       .select('id, title, slug, description, thumbnail_url, payment_link')
       .eq('is_published', true)
       .order('created_at', { ascending: false });
-    courses = fallback.data ?? [];
+    courses = (fallback.data ?? []).map((course) => ({
+      ...course,
+      program_content: null,
+    }));
     coursesError = fallback.error;
+  } else {
+    courses = coursesWithProgram ?? [];
+    coursesError = coursesWithProgramError;
   }
 
   const { data: marketingVideosRaw = [] } = await supabase
@@ -153,9 +172,7 @@ export default async function LandingPage() {
     description: course.description,
     thumbnail_url: course.thumbnail_url,
     payment_link: course.payment_link,
-    programContent: normalizeProgramContent(
-      (course as { program_content?: unknown }).program_content
-    ),
+    programContent: normalizeProgramContent(course.program_content),
   }));
 
   return (
