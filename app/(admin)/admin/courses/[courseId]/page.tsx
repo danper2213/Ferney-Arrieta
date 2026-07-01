@@ -15,6 +15,8 @@ import { BunnyUploader } from '@/components/admin/BunnyUploader';
 import { LessonVideoMosaic } from '@/components/admin/LessonVideoMosaic';
 import { LessonResourcesManager } from '@/components/admin/LessonResourcesManager';
 import { LessonMotivationalMessageForm } from '@/components/admin/LessonMotivationalMessageForm';
+import { CourseProgramContentForm } from '@/components/admin/CourseProgramContentForm';
+import { normalizeProgramContent } from '@/lib/course-program-content';
 import { resolveBunnyVideoThumbnailUrl } from '@/app/actions/bunny';
 import { type LessonResource } from '@/lib/lesson-resources';
 import { BookOpen, Paperclip, Video } from 'lucide-react';
@@ -24,6 +26,11 @@ import { LessonActions } from './lesson-actions';
 import { LessonReorderButtons } from './lesson-reorder-buttons';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import {
+  getLessonOutlineStyle,
+  getModuleOutlineStyle,
+} from '@/lib/admin/course-outline-styles';
+import { cn } from '@/lib/utils';
 
 type Module = {
   id: string;
@@ -227,6 +234,11 @@ export default async function CourseEditPage({
         </div>
       </div>
 
+      <CourseProgramContentForm
+        courseId={courseId}
+        initialContent={normalizeProgramContent(course.program_content)}
+      />
+
       {/* Aviso si falló la carga de módulos */}
       {modulesError && (
         <div className="mb-6 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
@@ -256,16 +268,23 @@ export default async function CourseEditPage({
         </Card>
       ) : (
         <Accordion type="multiple" className="space-y-4">
-          {sortedModules.map((module, index) => (
+          {sortedModules.map((module, index) => {
+            const moduleStyle = getModuleOutlineStyle(index);
+            return (
             <AccordionItem
               key={module.id}
               value={module.id}
-              className="border rounded-lg overflow-hidden"
+              className={cn('border-0', moduleStyle.container)}
             >
-              <div className="flex w-full min-w-0 items-center gap-2 px-6 py-2">
-                <AccordionTrigger className="min-w-0 flex-1 py-2 hover:bg-muted/50 hover:no-underline [&>svg]:shrink-0">
+              <div className="flex w-full min-w-0 items-center gap-2 px-4 py-2 sm:px-6">
+                <AccordionTrigger
+                  className={cn(
+                    'min-w-0 flex-1 rounded-md py-2 hover:no-underline [&>svg]:shrink-0',
+                    moduleStyle.triggerHover
+                  )}
+                >
                   <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                    <Badge variant="outline" className="shrink-0 font-mono">
+                    <Badge variant="outline" className={cn('shrink-0 font-mono', moduleStyle.badge)}>
                       {index + 1}
                     </Badge>
                     <span className="min-w-0 flex-1 truncate font-semibold text-lg">{module.title}</span>
@@ -284,7 +303,7 @@ export default async function CourseEditPage({
                   <ModuleActions moduleId={module.id} title={module.title} />
                 </div>
               </div>
-              <AccordionContent className="px-6 pb-4">
+              <AccordionContent className={cn('px-4 pb-4 sm:px-6', moduleStyle.content)}>
                 <div className="space-y-4">
                   {/* Botón Agregar Lección */}
                   <div className="flex justify-end pt-2">
@@ -305,13 +324,22 @@ export default async function CourseEditPage({
                         const lessonEmbedUrl = media?.embedUrl ?? getLessonEmbedUrl(lesson.video_provider_id);
                         const lessonThumbnailUrl = media?.thumbnailUrl ?? null;
                         const lessonResources = resourcesByLesson[lesson.id] ?? [];
+                        const lessonStyle = getLessonOutlineStyle(index, lessonIndex);
                         return (
-                        <Card key={lesson.id} className="overflow-hidden border-border/60 bg-card/50 py-0 shadow-sm">
+                        <Card key={lesson.id} className={lessonStyle.card}>
                           <AccordionItem value={lesson.id} className="border-0">
-                            <div className="flex w-full min-w-0 items-center gap-2 border-b border-border/40 bg-muted/20 px-3 py-2 sm:px-4">
+                            <div
+                              className={cn(
+                                'flex w-full min-w-0 items-center gap-2 px-3 py-2 sm:px-4',
+                                lessonStyle.header
+                              )}
+                            >
                               <AccordionTrigger className="min-w-0 flex-1 py-2 hover:no-underline [&>svg]:shrink-0">
                                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-left">
-                                  <Badge variant="outline" className="shrink-0 font-mono text-xs">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn('shrink-0 font-mono text-xs', lessonStyle.numberBadge)}
+                                  >
                                     {lessonIndex + 1}
                                   </Badge>
                                   <CardTitle className="min-w-0 flex-1 truncate text-base">
@@ -354,7 +382,7 @@ export default async function CourseEditPage({
                               </div>
                             </div>
                             <AccordionContent className="px-0 pb-0">
-                              <div className="space-y-5 px-3 py-4 sm:px-5 sm:py-5">
+                              <div className={cn('space-y-5 px-3 py-4 sm:px-5 sm:py-5', lessonStyle.content)}>
                                 {lesson.description?.trim() && (
                                   <p className="text-sm leading-relaxed text-muted-foreground">
                                     {lesson.description}
@@ -400,7 +428,8 @@ export default async function CourseEditPage({
                 </div>
               </AccordionContent>
             </AccordionItem>
-          ))}
+            );
+          })}
         </Accordion>
       )}
     </div>

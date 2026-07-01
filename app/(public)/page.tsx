@@ -4,7 +4,9 @@ import Image from 'next/image';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MarketingVideoCard } from '@/components/landing/MarketingVideoCard';
-import { PaymentModal } from '@/components/landing/PaymentModal';
+import { FeaturedCourseCard } from '@/components/landing/FeaturedCourseCard';
+import { normalizeProgramContent } from '@/lib/course-program-content';
+import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 import {
   ArrowRight,
   BookOpen,
@@ -17,7 +19,6 @@ import {
   Facebook,
   Instagram,
   Youtube,
-  MessageCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -83,11 +84,21 @@ export default async function LandingPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: courses = [] } = await supabase
+  let { data: courses = [], error: coursesError } = await supabase
     .from('courses')
-    .select('id, title, slug, description, thumbnail_url, payment_link')
+    .select('id, title, slug, description, thumbnail_url, payment_link, program_content')
     .eq('is_published', true)
     .order('created_at', { ascending: false });
+
+  if (coursesError && isMissingColumnError(coursesError)) {
+    const fallback = await supabase
+      .from('courses')
+      .select('id, title, slug, description, thumbnail_url, payment_link')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false });
+    courses = fallback.data ?? [];
+    coursesError = fallback.error;
+  }
 
   const { data: marketingVideosRaw = [] } = await supabase
     .from('marketing_videos')
@@ -135,14 +146,17 @@ export default async function LandingPage() {
     };
   });
 
-  const courseList = (courses ?? []) as {
-    id: string;
-    title: string;
-    slug: string;
-    description: string;
-    thumbnail_url: string | null;
-    payment_link: string | null;
-  }[];
+  const courseList = (courses ?? []).map((course) => ({
+    id: course.id,
+    title: course.title,
+    slug: course.slug,
+    description: course.description,
+    thumbnail_url: course.thumbnail_url,
+    payment_link: course.payment_link,
+    programContent: normalizeProgramContent(
+      (course as { program_content?: unknown }).program_content
+    ),
+  }));
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -180,72 +194,18 @@ export default async function LandingPage() {
             </div>
           ) : (
             <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 md:gap-5 lg:grid-cols-3">
-              {courseList.map((course) => {
-                const isEnrolled = enrolledCourseIds.includes(course.id);
-                return (
-                  <Card
-                    key={course.id}
-                    className={cn(
-                      'flex w-full flex-col overflow-hidden border-slate-700/50 bg-slate-950 transition-all hover:border-blue-500/40',
-                      ACCENT_BORDER
-                    )}
-                  >
-                    <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-slate-800 sm:aspect-[5/3]">
-                      {course.thumbnail_url ? (
-                        <img
-                          src={course.thumbnail_url}
-                          alt={course.title}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center">
-                          <BookOpen className="h-10 w-10 text-slate-600 sm:h-12 sm:w-12" />
-                        </div>
-                      )}
-                    </div>
-                    <CardHeader className="space-y-1 p-3 pb-2 sm:p-4 sm:pb-2">
-                      <CardTitle className="text-base font-semibold leading-snug text-white line-clamp-2 sm:text-lg">
-                        {course.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-1 flex-col gap-3 p-3 pt-0 sm:gap-3 sm:p-4 sm:pt-0">
-                      <p className="line-clamp-2 flex-1 text-xs leading-relaxed text-slate-400 sm:line-clamp-3 sm:text-sm">
-                        {course.description}
-                      </p>
-                      {isEnrolled ? (
-                        <Link
-                          href={`/course/${course.slug}`}
-                          className={cn(
-                            'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors sm:py-2.5',
-                            ACCENT_BG
-                          )}
-                        >
-                          Ir al Aula
-                          <span aria-hidden>▶️</span>
-                        </Link>
-                      ) : course.payment_link?.trim() ? (
-                        <PaymentModal
-                          courseTitle={course.title}
-                          paymentLink={course.payment_link}
-                          userEmail={user?.email ?? null}
-                          whatsappNumber={whatsappNumber || null}
-                          triggerClassName="px-3 py-2 text-sm sm:py-2.5"
-                        />
-                      ) : (
-                        <a
-                          href={buildWhatsAppUrl(course.title, whatsappNumber)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A] sm:py-2.5"
-                        >
-                          <MessageCircle className="h-4 w-4 shrink-0" />
-                          Comprar por WhatsApp
-                        </a>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+              {courseList.map((course) => (
+                <FeaturedCourseCard
+                  key={course.id}
+                  course={course}
+                  isEnrolled={enrolledCourseIds.includes(course.id)}
+                  userEmail={user?.email ?? null}
+                  whatsappNumber={whatsappNumber}
+                  whatsappUrl={buildWhatsAppUrl(course.title, whatsappNumber)}
+                  accentBg={ACCENT_BG}
+                  accentBorder={ACCENT_BORDER}
+                />
+              ))}
             </div>
           )}
         </div>
