@@ -11,6 +11,17 @@ export function isMissingColumnError(error: SupabaseErrorLike): boolean {
   return message.includes('does not exist') && message.includes('column');
 }
 
+/** PostgreSQL 42P01: undefined_table — relación aún no creada. */
+export function isMissingRelationError(error: SupabaseErrorLike): boolean {
+  if (!error) return false;
+  if (error.code === '42P01') return true;
+  const message = (error.message ?? '').toLowerCase();
+  return (
+    message.includes('does not exist') &&
+    (message.includes('relation') || message.includes('table'))
+  );
+}
+
 export const ENROLLMENT_EXPIRY_MIGRATION =
   'supabase/migrations/20250621130000_enrollment_access_expiry.sql';
 

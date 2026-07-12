@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { Navbar } from '@/components/landing/Navbar';
+import { PublicChrome } from '@/components/landing/PublicChrome';
 
 export default async function PublicLayout({
   children,
@@ -35,10 +35,5 @@ export default async function PublicLayout({
     };
   }
 
-  return (
-    <>
-      <Navbar user={navbarUser} />
-      <main>{children}</main>
-    </>
-  );
+  return <PublicChrome user={navbarUser}>{children}</PublicChrome>;
 }

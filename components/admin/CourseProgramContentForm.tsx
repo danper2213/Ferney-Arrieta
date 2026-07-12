@@ -71,8 +71,8 @@ export function CourseProgramContentForm({
               <p className="text-base font-semibold leading-none">Contenido «¿Qué aprenderás?»</p>
               <p className="text-sm font-normal text-muted-foreground">
                 {hasSavedContent
-                  ? 'Contenido guardado. La descripción del curso va en la tarjeta; esto se abre con el botón animado.'
-                  : 'La descripción del curso se muestra en la tarjeta. Aquí va el texto del botón «¿Qué aprenderás?».'}
+                  ? 'Contenido guardado. Se abre con el botón «¿Qué aprenderás?» en la sección grande de la landing.'
+                  : 'La descripción del curso va en la portada (imagen + texto). Aquí va el detalle de «¿Qué aprenderás?».'}
               </p>
             </div>
           </div>

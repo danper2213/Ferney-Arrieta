@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono, Playfair_Display, Bowlby_One_SC } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -19,6 +19,12 @@ const playfair = Playfair_Display({
   style: ["normal", "italic"],
 });
 
+const bowlbyOneSC = Bowlby_One_SC({
+  variable: "--font-bowlby",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 export const metadata: Metadata = {
   title: {
     default: "Comunidad de Acordeoneros | Acordeón y Mentalidad",
@@ -26,6 +32,12 @@ export const metadata: Metadata = {
   },
   description:
     "Aprende acordeón con programas estructurados y desarrolla la mentalidad que necesitas para destacar. Cursos, técnica y comunidad.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -36,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${bowlbyOneSC.variable} antialiased overflow-x-hidden`}
       >
         {children}
         <Toaster richColors position="top-center" />

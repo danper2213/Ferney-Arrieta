@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PaymentModal } from '@/components/landing/PaymentModal';
 import { BookOpen, ChevronRight, MessageCircle, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,7 +28,8 @@ type FeaturedCourseCardProps = {
   whatsappNumber: string;
   whatsappUrl: string;
   accentBg: string;
-  accentBorder: string;
+  /** Alterna imagen a la derecha en desktop */
+  imageOnRight?: boolean;
 };
 
 export function FeaturedCourseCard({
@@ -39,7 +39,7 @@ export function FeaturedCourseCard({
   whatsappNumber,
   whatsappUrl,
   accentBg,
-  accentBorder,
+  imageOnRight = false,
 }: FeaturedCourseCardProps) {
   const [learnOpen, setLearnOpen] = useState(false);
   const hasProgramContent = Boolean(course.programContent);
@@ -48,7 +48,7 @@ export function FeaturedCourseCard({
     <Link
       href={`/course/${course.slug}`}
       className={cn(
-        'flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-white transition-colors sm:py-2.5',
+        'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition-colors sm:w-auto sm:min-h-0 sm:text-base',
         accentBg
       )}
     >
@@ -61,99 +61,95 @@ export function FeaturedCourseCard({
       paymentLink={course.payment_link}
       userEmail={userEmail}
       whatsappNumber={whatsappNumber || null}
-      triggerClassName="px-3 py-2 text-sm sm:py-2.5"
+      triggerClassName="min-h-11 w-full rounded-full px-6 py-3 text-sm sm:min-h-0 sm:w-auto sm:text-base"
     />
   ) : (
     <a
       href={whatsappUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#20BD5A] sm:py-2.5"
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#20BD5A] sm:min-h-0 sm:w-auto sm:text-base"
     >
       <MessageCircle className="h-4 w-4 shrink-0" />
       Comprar por WhatsApp
     </a>
   );
 
-  return (
-    <>
-      <Card
-        className={cn(
-          'flex w-full flex-col overflow-hidden border-slate-700/50 bg-slate-950 transition-all hover:border-blue-500/40',
-          accentBorder
-        )}
-      >
-        <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-slate-800 sm:aspect-[5/3]">
-          {course.thumbnail_url ? (
-            <img
-              src={course.thumbnail_url}
-              alt={course.title}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center">
-              <BookOpen className="h-10 w-10 text-slate-600 sm:h-12 sm:w-12" />
-            </div>
-          )}
+  const imageBlock = (
+    <div
+      className={cn(
+        'relative aspect-[16/10] min-h-[200px] w-full overflow-hidden bg-slate-800 sm:aspect-[16/9] sm:min-h-[260px] md:aspect-auto md:min-h-full md:self-stretch',
+        imageOnRight ? 'md:order-2' : 'md:order-1'
+      )}
+    >
+      {course.thumbnail_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={course.thumbnail_url}
+          alt={course.title}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full min-h-[200px] w-full items-center justify-center sm:min-h-[260px]">
+          <BookOpen className="h-12 w-12 text-slate-600 sm:h-14 sm:w-14" />
         </div>
+      )}
+    </div>
+  );
 
-        <CardHeader className="space-y-1 p-3 pb-2 sm:p-4 sm:pb-2">
-          <CardTitle className="line-clamp-2 text-base font-semibold leading-snug text-white sm:text-lg">
-            {course.title}
-          </CardTitle>
-        </CardHeader>
+  const textBlock = (
+    <div
+      className={cn(
+        'flex flex-col justify-center gap-3.5 p-4 sm:gap-5 sm:p-8 md:p-10 lg:p-12',
+        imageOnRight ? 'md:order-1' : 'md:order-2'
+      )}
+    >
+      <div className="space-y-3 sm:space-y-4">
+        <h3 className="break-words text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+          {course.title}
+        </h3>
+        <p className="whitespace-pre-line break-words text-sm leading-relaxed text-slate-300 sm:text-base md:text-lg">
+          {course.description}
+        </p>
+      </div>
 
-        <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3 pt-0 sm:gap-3 sm:p-4 sm:pt-0">
-          <div
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        {hasProgramContent && (
+          <button
+            type="button"
+            onClick={() => setLearnOpen(true)}
             className={cn(
-              'min-h-[4.5rem] max-h-28 flex-1 overflow-y-auto overscroll-contain sm:max-h-32',
-              'rounded-md border border-slate-800/60 bg-slate-900/40 px-2.5 py-2',
-              '[scrollbar-width:thin] [scrollbar-color:rgba(100,116,139,0.45)_transparent]',
-              '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-600/70'
+              'learn-cta-button group relative inline-flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-full border border-blue-500/40 sm:w-auto',
+              'bg-gradient-to-r from-blue-950/70 via-slate-900 to-indigo-950/70 px-5 py-3 text-left',
+              'transition-all duration-300 hover:border-blue-400/70',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60'
             )}
           >
-            <p className="whitespace-pre-line text-xs leading-relaxed text-slate-400 sm:text-sm">
-              {course.description}
-            </p>
-          </div>
+            <span
+              aria-hidden
+              className="learn-cta-shimmer pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/15 to-transparent"
+            />
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-300">
+              <Sparkles className="h-4 w-4" />
+            </span>
+            <span className="relative min-w-0">
+              <span className="block text-sm font-semibold text-white">¿Qué aprenderás?</span>
+              <span className="block text-xs text-blue-200/80">Ver contenido del programa</span>
+            </span>
+            <ChevronRight className="relative ml-auto h-4 w-4 shrink-0 text-blue-400 transition-transform group-hover:translate-x-0.5 sm:ml-0" />
+          </button>
+        )}
+        {purchaseAction}
+      </div>
+    </div>
+  );
 
-          <div className="mt-auto space-y-2">
-            {hasProgramContent && (
-              <button
-                type="button"
-                onClick={() => setLearnOpen(true)}
-                className={cn(
-                  'learn-cta-button group relative w-full overflow-hidden rounded-lg border border-blue-500/40',
-                  'bg-gradient-to-r from-blue-950/70 via-slate-900 to-indigo-950/70 px-3 py-2.5 text-left',
-                  'transition-all duration-300 hover:border-blue-400/70 hover:from-blue-900/50 hover:to-indigo-900/50',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60'
-                )}
-              >
-                <span
-                  aria-hidden
-                  className="learn-cta-shimmer pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-blue-400/15 to-transparent"
-                />
-                <span className="relative flex items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-300 transition-transform duration-300 group-hover:scale-110">
-                    <Sparkles className="h-4 w-4 animate-pulse" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-white">
-                      ¿Qué aprenderás?
-                    </span>
-                    <span className="block text-xs text-blue-200/80 transition-colors group-hover:text-blue-100">
-                      Descubre todo lo que incluye este programa
-                    </span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-blue-400 transition-transform duration-300 group-hover:translate-x-1" />
-                </span>
-              </button>
-            )}
-
-            {purchaseAction}
-          </div>
-        </CardContent>
-      </Card>
+  return (
+    <>
+      <article className="grid w-full max-w-full overflow-hidden rounded-xl border border-slate-700/60 bg-slate-950 shadow-[0_20px_50px_rgba(0,0,0,0.35)] sm:rounded-2xl md:grid-cols-2 md:min-h-[340px] lg:min-h-[400px]">
+        {imageBlock}
+        {textBlock}
+      </article>
 
       <Dialog open={learnOpen} onOpenChange={setLearnOpen}>
         <DialogContent
@@ -178,7 +174,7 @@ export function FeaturedCourseCard({
             </p>
           </div>
 
-          <div className="shrink-0 border-t border-slate-800 bg-slate-950 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex shrink-0 justify-center border-t border-slate-800 bg-slate-950 px-4 py-3 sm:px-5 sm:py-4">
             {purchaseAction}
           </div>
         </DialogContent>

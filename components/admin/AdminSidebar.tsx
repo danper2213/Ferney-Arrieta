@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   BookOpen,
   Users,
+  MessageCircle,
   Settings,
   LogOut,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ import { logout } from '@/app/login/actions';
 const navItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/courses', label: 'Cursos', icon: BookOpen },
+  { href: '/admin/testimonials', label: 'Testimonios', icon: MessageCircle },
   { href: '/admin/students', label: 'Estudiantes', icon: Users },
   { href: '/admin/settings', label: 'Configuración', icon: Settings },
 ] as const;

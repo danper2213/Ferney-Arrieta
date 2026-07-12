@@ -1,25 +1,21 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import Image from 'next/image';
 import { generateBunnyToken } from '@/lib/bunny/token';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MarketingVideoCard } from '@/components/landing/MarketingVideoCard';
+import { TestimonialVideoCard } from '@/components/landing/TestimonialVideoCard';
 import { FeaturedCourseCard } from '@/components/landing/FeaturedCourseCard';
+import { ProgramViewPage } from '@/components/landing/ProgramViewPage';
+import { BonusSongsSection } from '@/components/landing/BonusSongsSection';
+import { HeroSection } from '@/components/landing/HeroSection';
+import { SiteFooter } from '@/components/landing/SiteFooter';
 import { normalizeProgramContent } from '@/lib/course-program-content';
-import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 import {
-  ArrowRight,
-  BookOpen,
-  Play,
-  Music,
-  Brain,
-  Users,
-  TrendingUp,
-  Check,
-  Facebook,
-  Instagram,
-  Youtube,
-} from 'lucide-react';
+  DEFAULT_DOMINA_PLANS,
+  parseCoursePlanRow,
+  type CoursePlan,
+} from '@/lib/course-plans';
+import { isMissingColumnError, isMissingRelationError } from '@/lib/supabase/schema-fallback';
+import { resolveBunnyVideoThumbnailUrl } from '@/lib/bunny/thumbnail';
+import { ArrowRight, BookOpen, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // Revalidar la landing cada 60 segundos
@@ -28,16 +24,12 @@ export const revalidate = 60;
 // Color de acento: azul profesional (#2563EB = blue-600)
 const ACCENT = 'text-blue-400';
 const ACCENT_BG = 'bg-blue-600 hover:bg-blue-500';
-const ACCENT_BORDER = 'border-blue-500/50';
-
-// Imagen de fondo del Hero (`public/welcome.png`)
-const HERO_BG_IMAGE = '/welcome.png';
 
 /** Márgenes horizontales y ancho máx. alineados con «Programas destacados» */
 const LANDING_SECTION_INNER =
-  'container mx-auto max-w-6xl px-3 sm:px-4 md:px-6';
+  'container mx-auto w-full max-w-6xl px-3 sm:px-4 md:px-6';
 /** Padding vertical homogéneo entre secciones */
-const LANDING_SECTION_Y = 'py-12 sm:py-16 md:py-20';
+const LANDING_SECTION_Y = 'py-10 sm:py-16 md:py-20';
 
 function buildWhatsAppUrl(courseTitle: string, whatsappNumber: string): string {
   const num = (whatsappNumber || (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '')).replace(/\D/g, '');
@@ -46,39 +38,13 @@ function buildWhatsAppUrl(courseTitle: string, whatsappNumber: string): string {
   return `https://wa.me/${num}?text=${encodeURIComponent(message)}`;
 }
 
-const FEATURES = [
-  {
-    icon: Music,
-    title: 'Técnica Sólida',
-    description:
-      'Programas estructurados paso a paso para consolidar bases que perduran.',
-  },
-  {
-    icon: Brain,
-    title: 'Mentalidad Ganadora',
-    description:
-      'Desarrolla la mentalidad que necesitas para destacar tanto en el escenario como en la vida.',
-  },
-  {
-    icon: Users,
-    title: 'Comunidad Exclusiva',
-    description:
-      'Forma parte de una comunidad de acordeonistas que comparten tu misma pasión y objetivos.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Resultados Reales',
-    description:
-      'Metodología probada que combina técnica y mindset para que veas avances medibles.',
-  },
-];
+function isDominaCourse(course: { title: string; slug: string }) {
+  return /domina|acorde[oó]n/i.test(`${course.slug} ${course.title}`);
+}
 
-const METHOD_BENEFITS = [
-  'Ejercicios paso a paso para todos los niveles',
-  'Soporte continuo y seguimiento personalizado',
-  'Acceso de por vida a los programas',
-  'Combinación de técnica y desarrollo personal',
-];
+function isCancionesCourse(course: { title: string; slug: string }) {
+  return /cancion/i.test(`${course.slug} ${course.title}`);
+}
 
 type PublishedCourseRow = {
   id: string;
@@ -119,9 +85,9 @@ export default async function LandingPage() {
     coursesError = coursesWithProgramError;
   }
 
-  const { data: marketingVideosRaw = [] } = await supabase
-    .from('marketing_videos')
-    .select('*')
+  const { data: testimonialsRaw = [], error: testimonialsError } = await supabase
+    .from('testimonials')
+    .select('id, person_name, country, description, video_provider_id, thumbnail_url')
     .eq('is_active', true)
     .order('order_index', { ascending: true });
 
@@ -145,25 +111,45 @@ export default async function LandingPage() {
     '';
 
   const libraryId = (process.env.BUNNY_LIBRARY_ID ?? '').split('#')[0].trim();
-  const marketingVideos = (marketingVideosRaw ?? []).map((video) => {
-    const providerId = (video as { video_provider_id?: string }).video_provider_id;
+
+  function buildEmbedUrl(providerId?: string | null) {
     const tokenResult = providerId ? generateBunnyToken(providerId, 3600) : null;
     const signedUrl = tokenResult && 'embedUrl' in tokenResult ? tokenResult.embedUrl : '';
-    const embedUrl =
+    return (
       signedUrl ||
       (providerId && libraryId
         ? `https://player.mediadelivery.net/embed/${libraryId}/${providerId}`
-        : '');
-    return {
-      id: (video as { id: string }).id,
-      title: (video as { title: string }).title,
-      description: (video as { description?: string }).description ?? null,
-      thumbnail_url: (video as { thumbnail_url?: string }).thumbnail_url ?? null,
-      embedUrl,
-      cta_text: (video as { cta_text?: string }).cta_text ?? null,
-      cta_link: (video as { cta_link?: string }).cta_link ?? null,
-    };
-  });
+        : '')
+    );
+  }
+
+  const testimonials = testimonialsError
+    ? []
+    : await Promise.all(
+    (testimonialsRaw ?? []).map(async (row) => {
+      const item = row as {
+        id: string;
+        person_name: string;
+        country?: string;
+        description?: string | null;
+        video_provider_id?: string;
+        thumbnail_url?: string | null;
+      };
+      const providerId = item.video_provider_id;
+      const thumbnailUrl =
+        item.thumbnail_url ||
+        (providerId ? await resolveBunnyVideoThumbnailUrl(providerId) : null);
+
+      return {
+        id: item.id,
+        person_name: item.person_name,
+        country: item.country ?? '',
+        description: item.description ?? null,
+        thumbnail_url: thumbnailUrl,
+        embedUrl: buildEmbedUrl(providerId),
+      };
+    }),
+  );
 
   const courseList = (courses ?? []).map((course) => ({
     id: course.id,
@@ -175,43 +161,115 @@ export default async function LandingPage() {
     programContent: normalizeProgramContent(course.program_content),
   }));
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      {/* ——— Hero: welcome completa en cualquier pantalla (object-contain) ——— */}
-      <section className="relative isolate box-border h-[100svh] min-h-[320px] w-full overflow-hidden bg-black">
-        <div className="absolute inset-6 sm:inset-10 md:inset-14 lg:inset-[4.5rem]">
-          <Image
-            src={HERO_BG_IMAGE}
-            alt=""
-            fill
-            priority
-            sizes="100vw"
-            className="object-contain object-center"
-          />
-        </div>
-      </section>
+  const dominaCourse = courseList.find((c) => isDominaCourse(c)) ?? null;
+  const cancionesCourse = courseList.find((c) => isCancionesCourse(c)) ?? null;
+  const otherCourses = courseList.filter(
+    (c) => !isDominaCourse(c) && !isCancionesCourse(c)
+  );
 
-      {/* ——— Nuestros Programas Destacados ——— */}
+  const courseIds = courseList.map((c) => c.id);
+  const plansByCourseId: Record<string, CoursePlan[]> = {};
+
+  if (courseIds.length > 0) {
+    const { data: plansRaw, error: plansError } = await supabase
+      .from('course_plans')
+      .select('*')
+      .in('course_id', courseIds)
+      .eq('is_active', true)
+      .order('order_index', { ascending: true });
+
+    if (plansError && !isMissingRelationError(plansError) && !isMissingColumnError(plansError)) {
+      console.error('Error loading course_plans:', plansError);
+    } else {
+      for (const row of plansRaw ?? []) {
+        const plan = parseCoursePlanRow(row as Record<string, unknown>);
+        if (!plansByCourseId[plan.course_id]) plansByCourseId[plan.course_id] = [];
+        plansByCourseId[plan.course_id].push(plan);
+      }
+    }
+  }
+
+  function resolvePlansForCourse(course: { id: string; title: string; slug: string }): CoursePlan[] {
+    const fromDb = plansByCourseId[course.id] ?? [];
+    if (fromDb.length > 0) return fromDb;
+
+    if (!isDominaCourse(course)) return [];
+
+    return DEFAULT_DOMINA_PLANS.map((plan, index) => ({
+      id: `default-${plan.plan_key}`,
+      course_id: course.id,
+      ...plan,
+      payment_link: plan.payment_link || null,
+      badge: plan.badge || null,
+      order_index: index,
+    }));
+  }
+
+  return (
+    <div className="min-h-screen max-w-[100vw] overflow-x-hidden bg-slate-950 text-white">
+      <HeroSection />
+
+      {/* ——— Programas: Domina primero, Canciones (bono) debajo ——— */}
       <section
         id="programas"
-        className={cn('border-t border-slate-800/80 bg-slate-900', LANDING_SECTION_Y)}
+        className={cn('scroll-mt-4 border-t border-slate-800/80 bg-slate-900', LANDING_SECTION_Y)}
       >
         <div className={LANDING_SECTION_INNER}>
-          <h2 className="mb-2 text-center text-2xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
+          <h2 className="mb-2 px-1 text-center text-xl font-bold tracking-tight text-white sm:text-3xl md:text-4xl">
             Nuestros Programas Destacados
           </h2>
-          <p className="mx-auto mb-8 max-w-2xl px-1 text-center text-sm text-slate-400 sm:mb-10 sm:text-base md:mb-12">
-            Cursos diseñados para llevarte paso a paso desde lo básico hasta el nivel que buscas.
+          <p className="mx-auto mb-6 max-w-2xl px-1 text-center text-sm text-slate-400 sm:mb-10 sm:text-base md:mb-12">
+            Empieza con Domina el Acordeón. El Programa de Canciones es tu bono al culminar.
           </p>
 
-          {courseList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 py-12 sm:rounded-2xl sm:py-14">
-              <BookOpen className="mb-3 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
-              <p className="text-sm text-slate-400 sm:text-base">Próximamente nuevos programas.</p>
-            </div>
-          ) : (
-            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4 md:gap-5 lg:grid-cols-3">
-              {courseList.map((course) => (
+          <div className="flex w-full flex-col gap-6 sm:gap-10 md:gap-12">
+              {dominaCourse ? (
+                (() => {
+                  const plans = resolvePlansForCourse(dominaCourse);
+                  if (plans.length > 0) {
+                    return (
+                      <ProgramViewPage
+                        key={dominaCourse.id}
+                        course={dominaCourse}
+                        plans={plans}
+                        isEnrolled={enrolledCourseIds.includes(dominaCourse.id)}
+                        userEmail={user?.email ?? null}
+                        whatsappNumber={whatsappNumber}
+                      />
+                    );
+                  }
+
+                  return (
+                    <FeaturedCourseCard
+                      key={dominaCourse.id}
+                      course={dominaCourse}
+                      isEnrolled={enrolledCourseIds.includes(dominaCourse.id)}
+                      userEmail={user?.email ?? null}
+                      whatsappNumber={whatsappNumber}
+                      whatsappUrl={buildWhatsAppUrl(dominaCourse.title, whatsappNumber)}
+                      accentBg={ACCENT_BG}
+                    />
+                  );
+                })()
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 py-12 sm:rounded-2xl sm:py-14">
+                  <BookOpen className="mb-3 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
+                  <p className="text-sm text-slate-400 sm:text-base">
+                    Próximamente Domina el Acordeón.
+                  </p>
+                </div>
+              )}
+
+              <BonusSongsSection
+                title={cancionesCourse?.title ?? 'Programa de Canciones'}
+                description={
+                  cancionesCourse?.description?.trim() ||
+                  'Un repertorio pensado para aplicar lo que aprendes en Domina el Acordeón. No se compra por separado: lo desbloqueas automáticamente al culminar el programa base.'
+                }
+                imageUrl={cancionesCourse?.thumbnail_url ?? null}
+              />
+
+              {otherCourses.map((course, index) => (
                 <FeaturedCourseCard
                   key={course.id}
                   course={course}
@@ -220,227 +278,62 @@ export default async function LandingPage() {
                   whatsappNumber={whatsappNumber}
                   whatsappUrl={buildWhatsAppUrl(course.title, whatsappNumber)}
                   accentBg={ACCENT_BG}
-                  accentBorder={ACCENT_BORDER}
+                  imageOnRight={index % 2 === 1}
                 />
               ))}
             </div>
-          )}
         </div>
       </section>
 
-      {/* ——— Lo Que Nos Hace Diferentes ——— */}
-      <section className={cn('bg-slate-900', LANDING_SECTION_Y)}>
+      {/* ——— Testimonios de estudiantes ——— */}
+      <section
+        id="testimonios"
+        className={cn('scroll-mt-4 border-t border-slate-800/80 bg-slate-900', LANDING_SECTION_Y)}
+      >
         <div className={LANDING_SECTION_INNER}>
-          <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Lo Que Nos Hace Diferentes
-          </h2>
-          <p className="mx-auto mb-14 max-w-2xl text-center text-slate-400 text-lg">
-            Una combinación única de técnica y mentalidad para que llegues más lejos.
+          <p className={cn('mb-2 text-center text-xs font-semibold uppercase tracking-widest sm:mb-3 sm:text-sm', ACCENT)}>
+            Historias reales
           </p>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map(({ icon: Icon, title, description }) => (
-              <Card
-                key={title}
-                className={cn(
-                  'border-slate-700/50 bg-slate-950 transition-all hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/5',
-                  ACCENT_BORDER
-                )}
-              >
-                <CardHeader>
-                  <div className="mb-2 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <CardTitle className="text-lg text-white">{title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-slate-400 text-sm leading-relaxed">
-                    {description}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ——— Sobre el Método (Imagen + Texto) ——— */}
-      <section className={cn('bg-black', LANDING_SECTION_Y)}>
-        <div className={LANDING_SECTION_INNER}>
-          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
-            {/* Opcional: añade tu foto con style={{ backgroundImage: 'url(/instructor.jpg)' }} en el div interior */}
-            <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
-              <div className="aspect-[4/3] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 ring-4 ring-blue-500/30">
-                  <Music className="h-12 w-12" />
-                </div>
-                <div className="absolute bottom-4 left-4 right-4 h-1 rounded-full bg-blue-500/60" />
-              </div>
-            </div>
-            <div className="space-y-6">
-              <p className={cn('text-sm font-semibold uppercase tracking-widest', ACCENT)}>
-                Método comprobado
-              </p>
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Más que notas, formamos músicos completos.
-              </h2>
-              <p className="text-slate-400 leading-relaxed">
-                Combinamos la técnica del acordeón con el desarrollo de una mentalidad
-                ganadora. No se trata solo de tocar bien: se trata de crecer como
-                persona y artista, con programas que te llevan paso a paso desde lo
-                básico hasta el nivel que buscas.
-              </p>
-              <ul className="space-y-3">
-                {METHOD_BENEFITS.map((benefit) => (
-                  <li key={benefit} className="flex items-center gap-3 text-slate-300">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-400">
-                      <Check className="h-3.5 w-3.5" />
-                    </span>
-                    {benefit}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="#programas"
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-lg px-6 py-3 text-base font-medium text-white transition-colors',
-                  ACCENT_BG
-                )}
-              >
-                Ver Nuestros Cursos
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ——— Contenido Gratuito (Videos) ——— */}
-      <section className={cn('border-t border-slate-800 bg-slate-950', LANDING_SECTION_Y)}>
-        <div className={LANDING_SECTION_INNER}>
-          <h2 className="mb-4 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Contenido Gratuito
+          <h2 className="mb-3 px-1 text-center text-2xl font-bold tracking-tight text-white sm:mb-4 sm:text-3xl md:text-4xl">
+            Lo Que Dicen Nuestros Estudiantes
           </h2>
-          <p className="mx-auto mb-14 max-w-2xl text-center text-slate-400 text-lg">
-            Videos destacados para que conozcas nuestro estilo y empieces a disfrutar del aprendizaje.
+          <p className="mx-auto mb-8 max-w-2xl px-1 text-center text-sm text-slate-400 sm:mb-14 sm:text-lg">
+            Escucha directamente a quienes ya han vivido la experiencia y los resultados de nuestros programas.
           </p>
 
-          {marketingVideos.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-700/50 bg-slate-900 py-16">
-              <Play className="mb-4 h-12 w-12 text-slate-500" />
-              <p className="text-slate-400">Próximamente más contenido gratuito.</p>
+          {testimonials.filter((t) => t.embedUrl).length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 px-4 py-12 sm:rounded-2xl sm:py-16">
+              <MessageCircle className="mb-4 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
+              <p className="text-center text-sm text-slate-400 sm:text-base">
+                Próximamente testimonios de estudiantes.
+              </p>
             </div>
           ) : (
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {marketingVideos
-                .filter((v) => v.embedUrl)
-                .map((video) => (
-                  <MarketingVideoCard key={video.id} video={video} variant="dark" />
+            <div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 lg:gap-8">
+              {testimonials
+                .filter((t) => t.embedUrl)
+                .map((testimonial) => (
+                  <TestimonialVideoCard key={testimonial.id} testimonial={testimonial} />
                 ))}
             </div>
           )}
+
+          <div className="mt-8 text-center sm:mt-12">
+            <Link
+              href="#programas"
+              className={cn(
+                'inline-flex min-h-11 w-full max-w-xs items-center justify-center gap-2 rounded-lg px-6 py-3 text-sm font-medium text-white transition-colors sm:min-h-0 sm:w-auto sm:text-base',
+                ACCENT_BG
+              )}
+            >
+              Quiero ser el próximo
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* ——— Footer ——— */}
-      <footer className={cn('border-t border-slate-800 bg-black', LANDING_SECTION_Y)}>
-        <div className={LANDING_SECTION_INNER}>
-          <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex flex-col gap-4">
-              <Link href="/" className="inline-block" aria-label="Inicio">
-                <Image
-                  src="/logo.png"
-                  alt="Comunidad de Acordeoneros"
-                  width={160}
-                  height={40}
-                  className="h-8 w-auto object-contain brightness-0 invert opacity-90"
-                />
-              </Link>
-              <p className="max-w-xs text-sm text-slate-400">
-                Programas de acordeón y mentalidad para que llegues más lejos.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-8 sm:gap-12">
-              <div>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">
-                  Enlaces
-                </h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="/" className="text-slate-400 hover:text-white transition-colors">
-                      Inicio
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/#programas" className="text-slate-400 hover:text-white transition-colors">
-                      Cursos
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/#programas" className="text-slate-400 hover:text-white transition-colors">
-                      Blog
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/login" className="text-slate-400 hover:text-white transition-colors">
-                      Contacto
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-300">
-                  Redes
-                </h3>
-                <div className="flex gap-4">
-                  <a
-                    href="#"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
-                    aria-label="Facebook"
-                  >
-                    <Facebook className="h-5 w-5" />
-                  </a>
-                  <a
-                    href="#"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
-                    aria-label="Instagram"
-                  >
-                    <Instagram className="h-5 w-5" />
-                  </a>
-                  <a
-                    href="#"
-                    className="text-slate-400 hover:text-blue-400 transition-colors"
-                    aria-label="YouTube"
-                  >
-                    <Youtube className="h-5 w-5" />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-10 border-t border-slate-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} Comunidad de Acordeoneros. Todos los derechos reservados.
-            </p>
-            <div className="flex gap-6">
-              {user ? (
-                <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                  Dashboard
-                </Link>
-              ) : (
-                <>
-                  <Link href="/login" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                    Iniciar sesión
-                  </Link>
-                  <Link href="/register" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                    Registrarse
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter user={user} />
     </div>
   );
 }

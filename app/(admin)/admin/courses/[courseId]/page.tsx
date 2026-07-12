@@ -16,7 +16,10 @@ import { LessonVideoMosaic } from '@/components/admin/LessonVideoMosaic';
 import { LessonResourcesManager } from '@/components/admin/LessonResourcesManager';
 import { LessonMotivationalMessageForm } from '@/components/admin/LessonMotivationalMessageForm';
 import { CourseProgramContentForm } from '@/components/admin/CourseProgramContentForm';
+import { CourseLandingDetailsForm } from '@/components/admin/CourseLandingDetailsForm';
+import { CoursePlansManager } from '@/components/admin/CoursePlansManager';
 import { normalizeProgramContent } from '@/lib/course-program-content';
+import { getCoursePlans } from '@/app/(admin)/admin/courses/[courseId]/course-plans-actions';
 import { resolveBunnyVideoThumbnailUrl } from '@/app/actions/bunny';
 import { type LessonResource } from '@/lib/lesson-resources';
 import { BookOpen, Paperclip, Video } from 'lucide-react';
@@ -172,6 +175,7 @@ export default async function CourseEditPage({
 
   const allLessonIds = sortedModules.flatMap((module) => module.lessons.map((lesson) => lesson.id));
   const resourcesByLesson: Record<string, LessonResource[]> = {};
+  const coursePlans = await getCoursePlans(courseId);
 
   if (allLessonIds.length > 0) {
     const { data: resourcesRaw, error: resourcesError } = await supabase
@@ -233,6 +237,19 @@ export default async function CourseEditPage({
           </div>
         </div>
       </div>
+
+      <CourseLandingDetailsForm
+        courseId={courseId}
+        initialTitle={course.title}
+        initialDescription={course.description ?? ''}
+        initialThumbnailUrl={course.thumbnail_url ?? null}
+        initialPaymentLink={course.payment_link ?? null}
+      />
+
+      <CoursePlansManager
+        courseId={courseId}
+        initialPlans={coursePlans}
+      />
 
       <CourseProgramContentForm
         courseId={courseId}
