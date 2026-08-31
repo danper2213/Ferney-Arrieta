@@ -2,8 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { TestimonialVideoCard } from '@/components/landing/TestimonialVideoCard';
-import { FeaturedCourseCard } from '@/components/landing/FeaturedCourseCard';
-import { ProgramViewPage } from '@/components/landing/ProgramViewPage';
+import { FeaturedProgramsList } from '@/components/landing/FeaturedProgramsList';
 import { BonusSongsSection } from '@/components/landing/BonusSongsSection';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { SiteFooter } from '@/components/landing/SiteFooter';
@@ -67,14 +66,14 @@ export default async function LandingPage() {
     .from('courses')
     .select('id, title, slug, description, thumbnail_url, payment_link, program_content')
     .eq('is_published', true)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: true });
 
   if (coursesWithProgramError && isMissingColumnError(coursesWithProgramError)) {
     const fallback = await supabase
       .from('courses')
       .select('id, title, slug, description, thumbnail_url, payment_link')
       .eq('is_published', true)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: true });
     courses = (fallback.data ?? []).map((course) => ({
       ...course,
       program_content: null,
@@ -161,11 +160,9 @@ export default async function LandingPage() {
     programContent: normalizeProgramContent(course.program_content),
   }));
 
-  const dominaCourse = courseList.find((c) => isDominaCourse(c)) ?? null;
   const cancionesCourse = courseList.find((c) => isCancionesCourse(c)) ?? null;
-  const otherCourses = courseList.filter(
-    (c) => !isDominaCourse(c) && !isCancionesCourse(c)
-  );
+  /** Programas publicados en orden de creación (más antiguos primero), sin Canciones */
+  const featuredCourses = courseList.filter((c) => !isCancionesCourse(c));
 
   const courseIds = courseList.map((c) => c.id);
   const plansByCourseId: Record<string, CoursePlan[]> = {};
@@ -209,7 +206,7 @@ export default async function LandingPage() {
     <div className="min-h-screen max-w-[100vw] overflow-x-hidden bg-slate-950 text-white">
       <HeroSection />
 
-      {/* ——— Programas: Domina primero, Canciones (bono) debajo ——— */}
+      {/* ——— Programas destacados (orden de creación) + programa adicional ——— */}
       <section
         id="programas"
         className={cn('scroll-mt-4 border-t border-slate-800/80 bg-slate-900', LANDING_SECTION_Y)}
@@ -219,69 +216,41 @@ export default async function LandingPage() {
             Nuestros Programas Destacados
           </h2>
           <p className="mx-auto mb-6 max-w-2xl px-1 text-center text-sm text-slate-400 sm:mb-10 sm:text-base md:mb-12">
-            Empieza con Domina el Acordeón. El Programa de Canciones es tu bono al culminar.
+            Explora nuestros programas en el orden en que fueron creados. Al final encontrarás el
+            programa adicional que se desbloquea al culminar.
           </p>
 
-          <div className="flex w-full flex-col gap-6 sm:gap-10 md:gap-12">
-              {dominaCourse ? (
-                (() => {
-                  const plans = resolvePlansForCourse(dominaCourse);
-                  if (plans.length > 0) {
-                    return (
-                      <ProgramViewPage
-                        key={dominaCourse.id}
-                        course={dominaCourse}
-                        plans={plans}
-                        isEnrolled={enrolledCourseIds.includes(dominaCourse.id)}
-                        userEmail={user?.email ?? null}
-                        whatsappNumber={whatsappNumber}
-                      />
-                    );
-                  }
-
-                  return (
-                    <FeaturedCourseCard
-                      key={dominaCourse.id}
-                      course={dominaCourse}
-                      isEnrolled={enrolledCourseIds.includes(dominaCourse.id)}
-                      userEmail={user?.email ?? null}
-                      whatsappNumber={whatsappNumber}
-                      whatsappUrl={buildWhatsAppUrl(dominaCourse.title, whatsappNumber)}
-                      accentBg={ACCENT_BG}
-                    />
-                  );
-                })()
-              ) : (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 py-12 sm:rounded-2xl sm:py-14">
-                  <BookOpen className="mb-3 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
-                  <p className="text-sm text-slate-400 sm:text-base">
-                    Próximamente Domina el Acordeón.
-                  </p>
-                </div>
-              )}
-
-              <BonusSongsSection
-                title={cancionesCourse?.title ?? 'Programa de Canciones'}
-                description={
-                  cancionesCourse?.description?.trim() ||
-                  'Un repertorio pensado para aplicar lo que aprendes en Domina el Acordeón. No se compra por separado: lo desbloqueas automáticamente al culminar el programa base.'
-                }
-                imageUrl={cancionesCourse?.thumbnail_url ?? null}
+          {featuredCourses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-slate-700/50 bg-slate-950 py-12 sm:rounded-2xl sm:py-14">
+              <BookOpen className="mb-3 h-10 w-10 text-slate-500 sm:h-12 sm:w-12" />
+              <p className="text-sm text-slate-400 sm:text-base">
+                Próximamente nuevos programas.
+              </p>
+            </div>
+          ) : (
+            <>
+              <FeaturedProgramsList
+                courses={featuredCourses}
+                resolvePlans={resolvePlansForCourse}
+                enrolledCourseIds={enrolledCourseIds}
+                userEmail={user?.email ?? null}
+                whatsappNumber={whatsappNumber}
+                buildWhatsAppUrl={(title) => buildWhatsAppUrl(title, whatsappNumber)}
+                accentBg={ACCENT_BG}
               />
 
-              {otherCourses.map((course, index) => (
-                <FeaturedCourseCard
-                  key={course.id}
-                  course={course}
-                  isEnrolled={enrolledCourseIds.includes(course.id)}
-                  userEmail={user?.email ?? null}
-                  whatsappNumber={whatsappNumber}
-                  whatsappUrl={buildWhatsAppUrl(course.title, whatsappNumber)}
-                  accentBg={ACCENT_BG}
-                  imageOnRight={index % 2 === 1}
+              <div className="mt-12 border-t border-slate-800/80 pt-10 sm:mt-14 sm:pt-12 md:mt-16 md:pt-14">
+                <BonusSongsSection
+                  title={cancionesCourse?.title ?? 'Programa de Canciones'}
+                  description={
+                    cancionesCourse?.description?.trim() ||
+                    'Un repertorio pensado para aplicar lo que aprendes en Domina el Acordeón. No se compra por separado: lo desbloqueas automáticamente al culminar el programa base.'
+                  }
+                  imageUrl={cancionesCourse?.thumbnail_url ?? null}
                 />
-              ))}
-            </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
