@@ -7,32 +7,52 @@ export default async function PublicLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  let navbarUser: {
+    email: string;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+    role?: string | null;
+  } | null = null;
+  let redirectMaster = false;
 
-  let navbarUser: { email: string; displayName?: string | null; avatarUrl?: string | null; role?: string | null } | null = null;
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
 
-  if (authUser) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('display_name, role')
-      .eq('id', authUser.id)
-      .maybeSingle();
+    if (authUser) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('display_name, role')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
-    const displayName = (profile as { display_name?: string | null } | null)?.display_name ?? null;
-    const role = (profile as { role?: string | null } | null)?.role ?? null;
-    const avatarUrl = (authUser.user_metadata as { avatar_url?: string } | undefined)?.avatar_url ?? null;
+      const displayName = (profile as { display_name?: string | null } | null)?.display_name ?? null;
+      const role = (profile as { role?: string | null } | null)?.role ?? null;
+      const avatarUrl =
+        (authUser.user_metadata as { avatar_url?: string } | undefined)?.avatar_url ?? null;
 
-    if (role === 'master') {
-      redirect('/admin/dashboard');
+      if (role === 'master') {
+        redirectMaster = true;
+      } else {
+        navbarUser = {
+          email: authUser.email ?? '',
+          displayName:
+            displayName ??
+            (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ??
+            null,
+          avatarUrl,
+          role,
+        };
+      }
     }
+  } catch (error) {
+    console.error('Public layout auth unavailable:', error);
+  }
 
-    navbarUser = {
-      email: authUser.email ?? '',
-      displayName: displayName ?? (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ?? null,
-      avatarUrl,
-      role,
-    };
+  if (redirectMaster) {
+    redirect('/admin/dashboard');
   }
 
   return <PublicChrome user={navbarUser}>{children}</PublicChrome>;

@@ -27,11 +27,11 @@ const bowlbyOneSC = Bowlby_One_SC({
 
 export const metadata: Metadata = {
   title: {
-    default: "Comunidad de Acordeoneros | Acordeón y Mentalidad",
+    default: "Aprende acordeón a tu ritmo | Comunidad de Acordeoneros",
     template: "%s | Comunidad de Acordeoneros",
   },
   description:
-    "Aprende acordeón con programas estructurados y desarrolla la mentalidad que necesitas para destacar. Cursos, técnica y comunidad.",
+    "Aprende a tocar acordeón a tu ritmo, aunque tengas poco tiempo. Un método para adultos, organizado paso a paso, desde cero o para mejorar lo que ya sabes.",
 };
 
 export const viewport: Viewport = {
