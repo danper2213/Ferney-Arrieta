@@ -1,0 +1,13 @@
+{
+  "name": "Ferney Arrieta LMS",
+  "user": "ubuntu",
+  "install": "bash .cursor/dev-install.sh",
+  "start": "bash .cursor/dev-start.sh",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [3000, 54321]
+}
