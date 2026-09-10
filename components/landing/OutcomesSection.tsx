@@ -2,7 +2,6 @@ import { Check } from 'lucide-react';
 import {
   LandingSection,
   SectionEyebrow,
-  SectionLead,
   SectionTitle,
 } from '@/components/landing/LandingSection';
 
@@ -23,11 +22,8 @@ export function OutcomesSection() {
     <LandingSection id="conseguir" tone="base">
       <SectionEyebrow>Resultados reales</SectionEyebrow>
       <SectionTitle>¿Qué vas a conseguir?</SectionTitle>
-      <SectionLead>
-        Aquí no hablamos todavía de módulos. Primero quieres saber qué obtienes tú.
-      </SectionLead>
 
-      <div className="mx-auto max-w-3xl rounded-2xl border border-slate-700/60 bg-slate-950/80 p-4 sm:p-8">
+      <div className="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-700/60 bg-slate-950/80 p-4 sm:mt-8 sm:p-8">
         <p className="mb-5 text-sm font-semibold uppercase tracking-[0.16em] text-blue-300 sm:text-xs">
           Con el programa podrás
         </p>

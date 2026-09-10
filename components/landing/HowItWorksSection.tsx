@@ -75,8 +75,7 @@ export function HowItWorksSection() {
               Además de la plataforma, tienes clases en vivo
             </h3>
             <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
-              4 clases virtuales en vivo cada mes, los sábados a las 12:30 p. m. y 2:30 p. m., hora
-              Colombia.
+              4 clases virtuales en vivo cada mes, los sábados a las 2:30 p. m., hora Colombia.
             </p>
           </div>
         </div>

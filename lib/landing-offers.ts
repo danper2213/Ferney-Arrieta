@@ -21,7 +21,7 @@ const GANADOR_INCLUDES = [
   'Técnica, secretos y velocidad',
   'Canciones',
   '4 clases virtuales en vivo al mes',
-  'Clases los sábados a las 12:30 p. m. y 2:30 p. m., hora Colombia',
+  'Clases los sábados a las 2:30 p. m., hora Colombia',
   'Una estructura para avanzar acompañado',
 ];
 
@@ -41,7 +41,7 @@ const DEFAULT_GANADOR: LandingOffer = {
   name: 'Programa Ganador',
   tagline: 'Plataforma + acompañamiento en vivo',
   priceLabel: '$300.000',
-  comparisonPrice: '$250.000/mes*',
+  comparisonPrice: '$300.000',
   paymentLink: null,
   includes: GANADOR_INCLUDES,
   ideal:
@@ -53,8 +53,8 @@ const DEFAULT_PLATAFORMA: LandingOffer = {
   key: 'plataforma',
   name: 'Plataforma',
   tagline: 'Aprende a tu propio ritmo',
-  priceLabel: '$500.000 / año un solo pago',
-  comparisonPrice: '$500.000/año',
+  priceLabel: '$500.000 / año',
+  comparisonPrice: '$500.000 / año',
   paymentLink: null,
   includes: PLATAFORMA_INCLUDES,
   ideal: 'Ideal si tienes disciplina y prefieres aprender de manera independiente.',
@@ -65,14 +65,10 @@ function matchPlan(plans: CoursePlan[], test: (plan: CoursePlan) => boolean) {
   return plans.find((plan) => plan.is_active !== false && test(plan));
 }
 
-function withPlanPrice(base: LandingOffer, plan: CoursePlan | undefined): LandingOffer {
-  const price = plan?.price_label?.trim() || '';
-  const paymentLink = plan?.payment_link?.trim() || null;
+function withPlanPayment(base: LandingOffer, plan: CoursePlan | undefined): LandingOffer {
   return {
     ...base,
-    priceLabel: price || base.priceLabel,
-    comparisonPrice: price || base.comparisonPrice,
-    paymentLink,
+    paymentLink: plan?.payment_link?.trim() || null,
   };
 }
 
@@ -91,7 +87,7 @@ export function resolveLandingOffers(plans: CoursePlan[]): {
   );
 
   return {
-    ganador: withPlanPrice(DEFAULT_GANADOR, ganadorPlan),
-    plataforma: withPlanPrice(DEFAULT_PLATAFORMA, plataformaPlan),
+    ganador: withPlanPayment(DEFAULT_GANADOR, ganadorPlan),
+    plataforma: withPlanPayment(DEFAULT_PLATAFORMA, plataformaPlan),
   };
 }
