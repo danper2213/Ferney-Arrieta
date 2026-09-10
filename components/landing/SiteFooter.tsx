@@ -9,7 +9,9 @@ type SiteFooterProps = {
 };
 
 const NAV_LINKS = [
-  { href: '/#programas', label: 'Programas' },
+  { href: '/#conseguir', label: 'El programa' },
+  { href: '/#elige', label: 'Planes' },
+  { href: '/#faq', label: 'Preguntas' },
   { href: '/#testimonios', label: 'Testimonios' },
   { href: '/login', label: 'Iniciar sesión' },
   { href: '/register', label: 'Registrarse' },
@@ -67,10 +69,10 @@ export function SiteFooter({ user, className }: SiteFooterProps) {
 
               <div className="mt-5 flex w-full flex-col gap-2.5 sm:mt-6 sm:flex-row sm:flex-wrap sm:gap-3">
                 <Link
-                  href="/#programas"
+                  href="/#elige"
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-500 sm:min-h-0"
                 >
-                  Ver programas
+                  Quiero aprender acordeón
                   <ArrowUpRight className="h-4 w-4 shrink-0" />
                 </Link>
                 {user ? (

@@ -67,10 +67,26 @@ function MobileNavSheet({
             <>
               <SheetClose asChild>
                 <Link
-                  href="/#programas"
+                  href="/#conseguir"
                   className="flex w-full items-center justify-center rounded-lg border border-border bg-muted/40 px-4 py-3 text-center text-sm font-medium hover:bg-muted"
                 >
-                  Programas destacados
+                  El programa
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  href="/#elige"
+                  className="flex w-full items-center justify-center rounded-lg border border-border bg-muted/40 px-4 py-3 text-center text-sm font-medium hover:bg-muted"
+                >
+                  Planes
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  href="/#faq"
+                  className="flex w-full items-center justify-center rounded-lg border border-border bg-muted/40 px-4 py-3 text-center text-sm font-medium hover:bg-muted"
+                >
+                  Preguntas
                 </Link>
               </SheetClose>
               <SheetClose asChild>
@@ -152,7 +168,20 @@ export function Navbar({ user }: { user: NavbarUser | null }) {
         </div>
 
         {overHero ? (
-          <div aria-hidden="true" />
+          <nav className="hidden items-center justify-center gap-3 justify-self-center text-xs font-medium text-white/80 md:flex lg:gap-5 lg:text-sm">
+            <Link href="/#conseguir" className="transition-colors hover:text-white">
+              El programa
+            </Link>
+            <Link href="/#elige" className="transition-colors hover:text-white">
+              Planes
+            </Link>
+            <Link href="/#faq" className="transition-colors hover:text-white">
+              Preguntas
+            </Link>
+            <Link href="/#testimonios" className="transition-colors hover:text-white">
+              Testimonios
+            </Link>
+          </nav>
         ) : (
           <Link
             href="/"
