@@ -19,7 +19,7 @@ const ROWS: { label: string; plataforma: boolean | string; ganador: boolean | st
   { label: 'Técnica y velocidad', plataforma: true, ganador: true },
   { label: 'Canciones', plataforma: true, ganador: true },
   { label: 'Clases virtuales en vivo', plataforma: false, ganador: '4 al mes' },
-  { label: 'Modalidad', plataforma: 'A tu ritmo', ganador: 'Acompañado' },
+  { label: 'Modalidad', plataforma: 'A tu ritmo', ganador: 'Mensual, acompañado' },
 ];
 
 export function PlanComparisonSection({ ganador, plataforma }: PlanComparisonSectionProps) {

@@ -39,9 +39,9 @@ const PLATAFORMA_INCLUDES = [
 const DEFAULT_GANADOR: LandingOffer = {
   key: 'ganador',
   name: 'Programa Ganador',
-  tagline: 'Plataforma + acompañamiento en vivo',
-  priceLabel: '$300.000',
-  comparisonPrice: '$300.000',
+  tagline: 'Pago mensual · plataforma + acompañamiento en vivo',
+  priceLabel: '$300.000 / mes',
+  comparisonPrice: '$300.000 / mes',
   paymentLink: null,
   includes: GANADOR_INCLUDES,
   ideal:
