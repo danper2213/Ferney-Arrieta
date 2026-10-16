@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { hasSupabasePublicEnv } from '@/lib/supabase/env';
 import Link from 'next/link';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { TestimonialVideoCard } from '@/components/landing/TestimonialVideoCard';
@@ -58,6 +59,10 @@ async function loadLandingData() {
       embedUrl: string;
     }>,
   };
+
+  if (!hasSupabasePublicEnv()) {
+    return empty;
+  }
 
   try {
     const supabase = await createClient();

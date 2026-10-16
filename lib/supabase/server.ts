@@ -1,19 +1,20 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import {
+  getSupabasePublicEnv,
+  MISSING_SUPABASE_ENV_MESSAGE,
+} from '@/lib/supabase/env';
 
 export async function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const env = getSupabasePublicEnv();
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      'Faltan las variables de entorno NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
-    );
+  if (!env) {
+    throw new Error(MISSING_SUPABASE_ENV_MESSAGE);
   }
 
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl, supabaseKey, {
+  return createServerClient(env.url, env.key, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
