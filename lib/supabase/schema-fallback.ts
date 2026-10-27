@@ -27,3 +27,9 @@ export const ENROLLMENT_EXPIRY_MIGRATION =
 
 export const ENROLLMENT_EXPIRY_MIGRATION_HINT =
   'Aplica en Supabase: 20250621130000_enrollment_access_expiry.sql (columna expires_at) y 20250621160000_enrollments_update_rls.sql (permiso UPDATE para master).';
+
+export const PROGRESS_WATCH_POSITION_MIGRATION =
+  'supabase/migrations/20251016000000_progress_watch_position.sql';
+
+export const PROGRESS_WATCH_POSITION_MIGRATION_HINT =
+  'Aplica en Supabase: 20251016000000_progress_watch_position.sql (last_position_seconds, last_watched_at).';

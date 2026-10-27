@@ -9,12 +9,18 @@ import { Lock, ChevronLeft, Calendar, Clock, ArrowLeft } from 'lucide-react';
 import { CommentsSection } from '@/components/student/CommentsSection';
 import { MarkAsViewedButton } from '@/components/student/MarkAsViewedButton';
 import { CourseMotivationalBanner } from '@/components/student/CourseMotivationalBanner';
+import { LessonVideoPlayer } from '@/components/student/LessonVideoPlayer';
 import {
   LessonResourcesSection,
   type LessonResourceWithUrl,
 } from '@/components/student/LessonResourcesSection';
 import { LESSON_RESOURCES_BUCKET, type LessonResource } from '@/lib/lesson-resources';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import {
+  appendEmbedStartTime,
+  parseResumeSeconds,
+  RESUME_MIN_SECONDS,
+} from '@/lib/student/continue-learning';
 
 type LessonWithModule = {
   id: string;
@@ -42,10 +48,13 @@ type FlatLesson = {
 
 export default async function StudentLessonPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ courseSlug: string; lessonId: string }>;
+  searchParams: Promise<{ t?: string }>;
 }) {
   const { courseSlug, lessonId } = await params;
+  const { t: tParam } = await searchParams;
   const supabase = await createClient();
 
   // 1. Obtener usuario actual
@@ -216,7 +225,29 @@ export default async function StudentLessonPage({
     })
   );
 
-  // 7. Generar token para el video (solo si está desbloqueado y hay video)
+  // 7. Posición guardada (query `t` tiene prioridad; si no, BD)
+  let resumeSeconds = parseResumeSeconds(tParam);
+
+  if (resumeSeconds < RESUME_MIN_SECONDS) {
+    const { data: watchRow, error: watchError } = await supabase
+      .from('progress')
+      .select('last_position_seconds')
+      .eq('user_id', user.id)
+      .eq('lesson_id', lessonId)
+      .maybeSingle();
+
+    if (!watchError && watchRow) {
+      resumeSeconds = parseResumeSeconds(
+        String(
+          (watchRow as { last_position_seconds?: number | string | null })
+            .last_position_seconds ?? 0
+        )
+      );
+    }
+    // Si falta la columna (migración pendiente), se reanuda desde 0.
+  }
+
+  // 8. Generar token para el video (solo si está desbloqueado y hay video)
   let embedUrl: string | null = null;
   let tokenError: string | null = null;
 
@@ -225,7 +256,7 @@ export default async function StudentLessonPage({
     if ('error' in tokenResult) {
       tokenError = tokenResult.error;
     } else {
-      embedUrl = tokenResult.embedUrl;
+      embedUrl = appendEmbedStartTime(tokenResult.embedUrl, resumeSeconds);
     }
   }
 
@@ -350,16 +381,13 @@ export default async function StudentLessonPage({
             {/* Video Player */}
             <div className="mb-6">
               {lessonData.video_provider_id && embedUrl ? (
-                <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-lg">
-                  <iframe
-                    title={`Video: ${lessonData.title}`}
-                    src={embedUrl}
-                    className="absolute inset-0 h-full w-full"
-                    loading="lazy"
-                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                    allowFullScreen
-                  />
-                </div>
+                <LessonVideoPlayer
+                  lessonId={lessonId}
+                  courseSlug={courseSlug}
+                  embedUrl={embedUrl}
+                  title={lessonData.title}
+                  initialPositionSeconds={resumeSeconds}
+                />
               ) : lessonData.video_provider_id && tokenError ? (
                 <Card className="aspect-video flex items-center justify-center">
                   <CardContent className="text-center">

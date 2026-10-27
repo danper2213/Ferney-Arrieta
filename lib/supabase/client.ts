@@ -1,14 +1,15 @@
 import { createBrowserClient } from '@supabase/ssr';
+import {
+  getSupabasePublicEnv,
+  MISSING_SUPABASE_ENV_MESSAGE,
+} from '@/lib/supabase/env';
 
 export function createClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const env = getSupabasePublicEnv();
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      'Faltan las variables de entorno NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'
-    );
+  if (!env) {
+    throw new Error(MISSING_SUPABASE_ENV_MESSAGE);
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey);
+  return createBrowserClient(env.url, env.key);
 }

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getSupabasePublicEnv } from '@/lib/supabase/env';
 
 function isDeadSessionAuthError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
@@ -22,14 +23,13 @@ function isDeadSessionAuthError(err: unknown): boolean {
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const env = getSupabasePublicEnv();
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!env) {
     return supabaseResponse;
   }
 
-  const supabase = createServerClient(supabaseUrl, supabaseKey, {
+  const supabase = createServerClient(env.url, env.key, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

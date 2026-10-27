@@ -23,18 +23,22 @@ DROP POLICY IF EXISTS "Authenticated users can insert own comments" ON public.co
 CREATE POLICY "Authenticated users can insert own comments"
 ON public.comments FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
--- Tabla progress para marcar lecciones completadas
+-- Tabla progress: completadas + posición de reproducción (reanudar como Netflix)
 CREATE TABLE IF NOT EXISTS public.progress (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   lesson_id uuid NOT NULL REFERENCES public.lessons(id) ON DELETE CASCADE,
-  is_completed boolean DEFAULT true,
-  completed_at timestamptz DEFAULT now(),
+  is_completed boolean DEFAULT false,
+  completed_at timestamptz,
+  last_position_seconds numeric NOT NULL DEFAULT 0,
+  last_watched_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE(user_id, lesson_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_progress_user_id ON public.progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_progress_lesson_id ON public.progress(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_progress_user_last_watched
+  ON public.progress (user_id, last_watched_at DESC);
 
 ALTER TABLE public.progress ENABLE ROW LEVEL SECURITY;
 
