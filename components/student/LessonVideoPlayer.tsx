@@ -20,6 +20,9 @@ type PlayerJsPlayer = {
   off: (event: string, callback?: (...args: never[]) => void) => void;
   setCurrentTime: (seconds: number) => void;
   getCurrentTime: (callback: (seconds: number) => void) => void;
+  play?: () => void;
+  pause?: () => void;
+  getPaused?: (callback: (paused: boolean) => void) => void;
 };
 
 type PlayerJsNamespace = {
@@ -87,7 +90,6 @@ export function LessonVideoPlayer({
   initialPositionSeconds = 0,
 }: LessonVideoPlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<PlayerJsPlayer | null>(null);
   const lastSavedRef = useRef(initialPositionSeconds);
   const lastSeenRef = useRef(initialPositionSeconds);
@@ -119,7 +121,6 @@ export function LessonVideoPlayer({
         showFlash(deltaSeconds < 0 ? 'back' : 'forward');
       };
 
-      // Preferimos el último timeupdate; si aún no hay, preguntamos al player.
       if (lastSeenRef.current > 0 || initialPositionSeconds > 0) {
         applySeek(lastSeenRef.current || initialPositionSeconds);
         return;
@@ -247,7 +248,7 @@ export function LessonVideoPlayer({
     };
   }, [lessonId, courseSlug, initialPositionSeconds]);
 
-  // Atajos estilo YouTube: ← / J = -10s, → / L = +10s
+  // Atajos: ←/J −10s, →/L +10s, Space play/pause
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!playerReady) return;
@@ -265,9 +266,21 @@ export function LessonVideoPlayer({
       if (event.key === 'ArrowLeft' || event.key === 'j' || event.key === 'J') {
         event.preventDefault();
         seekBy(-SEEK_SECONDS);
-      } else if (event.key === 'ArrowRight' || event.key === 'l' || event.key === 'L') {
+        return;
+      }
+      if (event.key === 'ArrowRight' || event.key === 'l' || event.key === 'L') {
         event.preventDefault();
         seekBy(SEEK_SECONDS);
+        return;
+      }
+      if (event.key === ' ' || event.code === 'Space') {
+        const player = playerRef.current;
+        if (!player?.getPaused || !player.play || !player.pause) return;
+        event.preventDefault();
+        player.getPaused((paused) => {
+          if (paused) player.play?.();
+          else player.pause?.();
+        });
       }
     };
 
@@ -276,75 +289,84 @@ export function LessonVideoPlayer({
   }, [playerReady, seekBy]);
 
   return (
-    <div
-      ref={containerRef}
-      className="group relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-lg"
-      tabIndex={0}
-      aria-label={`Reproductor: ${title}. Flecha izquierda o J retrocede ${SEEK_SECONDS} segundos.`}
-    >
-      <iframe
-        ref={iframeRef}
-        title={`Video: ${title}`}
-        src={embedUrl}
-        className="absolute inset-0 h-full w-full"
-        loading="eager"
-        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-        allowFullScreen
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+    <div className="space-y-2">
+      {/*
+        El iframe de Bunny debe quedar sin overlays que capturen clics:
+        si no, play/pause nativo deja de responder.
+      */}
+      <div
+        className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-lg"
+        aria-label={`Reproductor: ${title}`}
+      >
+        <iframe
+          ref={iframeRef}
+          title={`Video: ${title}`}
+          src={embedUrl}
+          className="absolute inset-0 z-0 h-full w-full"
+          loading="eager"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
 
-      {/* Controles fuera del iframe (Bunny captura los clics internos). */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-3 pb-3 pt-10 opacity-100 transition-opacity sm:px-4 sm:pb-4 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        {seekFlash === 'back' && (
+          <div
+            className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-1/3 items-center justify-center"
+            aria-hidden
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-0.5">
+                <RotateCcw className="h-5 w-5" />
+                <span className="text-xs font-semibold">{SEEK_SECONDS}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {seekFlash === 'forward' && (
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 z-10 flex w-1/3 items-center justify-center"
+            aria-hidden
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-0.5">
+                <RotateCw className="h-5 w-5" />
+                <span className="text-xs font-semibold">{SEEK_SECONDS}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
         <button
           type="button"
           disabled={!playerReady}
           onClick={() => seekBy(-SEEK_SECONDS)}
-          className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-lg bg-black/65 px-3 py-2 text-sm font-medium text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(
+            'inline-flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm font-medium transition',
+            'hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+          )}
           aria-label={`Retroceder ${SEEK_SECONDS} segundos`}
         >
           <RotateCcw className="h-4 w-4" aria-hidden />
-          {SEEK_SECONDS}s
+          −{SEEK_SECONDS}s
         </button>
+        <p className="hidden text-center text-xs text-muted-foreground sm:block">
+          Clic en el video para pausar · Espacio · ← / →
+        </p>
         <button
           type="button"
           disabled={!playerReady}
           onClick={() => seekBy(SEEK_SECONDS)}
-          className="pointer-events-auto inline-flex min-h-11 items-center gap-2 rounded-lg bg-black/65 px-3 py-2 text-sm font-medium text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-50"
+          className={cn(
+            'inline-flex min-h-11 items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm font-medium transition',
+            'hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+          )}
           aria-label={`Adelantar ${SEEK_SECONDS} segundos`}
         >
-          {SEEK_SECONDS}s
+          +{SEEK_SECONDS}s
           <RotateCw className="h-4 w-4" aria-hidden />
         </button>
-      </div>
-
-      {/* Feedback visual estilo YouTube al buscar */}
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-y-0 left-0 z-20 flex w-1/3 items-center justify-center transition-opacity duration-200',
-          seekFlash === 'back' ? 'opacity-100' : 'opacity-0'
-        )}
-        aria-hidden
-      >
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-0.5">
-            <RotateCcw className="h-5 w-5" />
-            <span className="text-xs font-semibold">{SEEK_SECONDS}</span>
-          </div>
-        </div>
-      </div>
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-y-0 right-0 z-20 flex w-1/3 items-center justify-center transition-opacity duration-200',
-          seekFlash === 'forward' ? 'opacity-100' : 'opacity-0'
-        )}
-        aria-hidden
-      >
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-0.5">
-            <RotateCw className="h-5 w-5" />
-            <span className="text-xs font-semibold">{SEEK_SECONDS}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
