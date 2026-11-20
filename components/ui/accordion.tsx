@@ -31,7 +31,10 @@ function AccordionTrigger({
   ...props
 }: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
   return (
-    <AccordionPrimitive.Header className="flex">
+    // flex-1 + min-w-0: cuando el trigger vive en una fila junto a botones de
+    // acciones (reordenar / menú), el header debe ocupar el espacio restante
+    // para que el área clicable sea toda la barra, no solo el texto.
+    <AccordionPrimitive.Header className="flex min-w-0 flex-1">
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(

@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ function SubmitButton() {
 }
 
 export function AddLessonDialog({ moduleId }: { moduleId: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const initialState: CreateLessonState = {};
   const [state, formAction] = useActionState(
@@ -43,10 +45,17 @@ export function AddLessonDialog({ moduleId }: { moduleId: string }) {
     initialState
   );
 
-  // Cerrar el diálogo cuando se crea exitosamente
-  if (state.success && open) {
-    setOpen(false);
-  }
+  useEffect(() => {
+    if (state.success) {
+      setOpen(false);
+      // Asegura que la nueva lección (y su bloque de recursos) aparezca al instante.
+      router.refresh();
+    }
+  }, [state, router]);
+
+  const titleId = `lesson-title-${moduleId}`;
+  const descriptionId = `lesson-description-${moduleId}`;
+  const daysId = `lesson-days-${moduleId}`;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -61,14 +70,15 @@ export function AddLessonDialog({ moduleId }: { moduleId: string }) {
           <DialogHeader>
             <DialogTitle>Crear Nueva Lección</DialogTitle>
             <DialogDescription>
-              Agrega una nueva lección a este módulo. Podrás subir el video más adelante.
+              Agrega una nueva lección a este módulo. Después podrás subir el video y los recursos
+              de apoyo desde la lección.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="title">Título de la Lección</Label>
+              <Label htmlFor={titleId}>Título de la Lección</Label>
               <Input
-                id="title"
+                id={titleId}
                 name="title"
                 placeholder="Ej: Configuración del entorno"
                 required
@@ -77,9 +87,9 @@ export function AddLessonDialog({ moduleId }: { moduleId: string }) {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="description">Descripción</Label>
+              <Label htmlFor={descriptionId}>Descripción</Label>
               <Textarea
-                id="description"
+                id={descriptionId}
                 name="description"
                 placeholder="Describe el contenido de esta lección..."
                 className="min-h-[100px]"
@@ -89,9 +99,9 @@ export function AddLessonDialog({ moduleId }: { moduleId: string }) {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="days_to_unlock">Días para Desbloquear</Label>
+              <Label htmlFor={daysId}>Días para Desbloquear</Label>
               <Input
-                id="days_to_unlock"
+                id={daysId}
                 name="days_to_unlock"
                 type="number"
                 min="0"
@@ -108,8 +118,10 @@ export function AddLessonDialog({ moduleId }: { moduleId: string }) {
               <div className="flex items-center gap-3 text-muted-foreground">
                 <Video className="h-8 w-8" />
                 <div>
-                  <p className="text-sm font-medium">Video Upload Pending</p>
-                  <p className="text-xs">La funcionalidad de subida de video se agregará próximamente</p>
+                  <p className="text-sm font-medium">Video y recursos</p>
+                  <p className="text-xs">
+                    Tras crear la lección podrás subir el video y PDFs, audios o imágenes de apoyo.
+                  </p>
                 </div>
               </div>
             </div>

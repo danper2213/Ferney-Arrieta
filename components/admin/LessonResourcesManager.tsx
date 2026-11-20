@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,11 +11,12 @@ import { createClient } from '@/lib/supabase/client';
 import {
   buildLessonResourceStoragePath,
   formatResourceSize,
-  getResourceTypeFromMime,
   getResourceTypeLabel,
   isAllowedResourceFile,
   LESSON_RESOURCES_BUCKET,
   MAX_RESOURCE_SIZE_BYTES,
+  resolveResourceFileMeta,
+  sanitizeResourceFileName,
   type LessonResource,
 } from '@/lib/lesson-resources';
 import { FileAudio, FileImage, FileText, Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
@@ -42,7 +43,12 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [localResources, setLocalResources] = useState<LessonResource[]>(resources);
   const [, startDelete] = useTransition();
+
+  useEffect(() => {
+    setLocalResources(resources);
+  }, [resources]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -51,6 +57,7 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
     setUploading(true);
     const supabase = createClient();
     let uploadedCount = 0;
+    const newlyAdded: LessonResource[] = [];
 
     for (const file of Array.from(files)) {
       if (file.size === 0) {
@@ -68,9 +75,10 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         continue;
       }
 
-      const resourceType = getResourceTypeFromMime(file.type);
-      if (!resourceType) continue;
+      const meta = resolveResourceFileMeta(file);
+      if (!meta) continue;
 
+      const { resourceType, mimeType } = meta;
       const resourceId = crypto.randomUUID();
       const storagePath = buildLessonResourceStoragePath(lessonId, resourceId, file.name);
 
@@ -79,7 +87,7 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         .upload(storagePath, file, {
           cacheControl: '3600',
           upsert: false,
-          contentType: file.type,
+          contentType: mimeType,
         });
 
       if (uploadError) {
@@ -95,7 +103,7 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         lessonId,
         fileName: file.name,
         storagePath,
-        mimeType: file.type,
+        mimeType,
         resourceType,
         fileSize: file.size,
       });
@@ -106,7 +114,24 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         continue;
       }
 
+      const safeName = sanitizeResourceFileName(file.name);
+      const title = safeName.replace(/\.[^.]+$/, '') || safeName;
+      newlyAdded.push({
+        id: resourceId,
+        lesson_id: lessonId,
+        title,
+        file_name: safeName,
+        storage_path: storagePath,
+        mime_type: mimeType,
+        resource_type: resourceType,
+        file_size: file.size,
+        order_index: (localResources.length + newlyAdded.length),
+      });
       uploadedCount += 1;
+    }
+
+    if (newlyAdded.length > 0) {
+      setLocalResources((prev) => [...prev, ...newlyAdded]);
     }
 
     setUploading(false);
@@ -133,6 +158,7 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         return;
       }
 
+      setLocalResources((prev) => prev.filter((r) => r.id !== resourceId));
       toast.success(`"${title}" eliminado`);
       router.refresh();
     });
@@ -183,13 +209,13 @@ export function LessonResourcesManager({ lessonId, resources }: LessonResourcesM
         </div>
       </div>
 
-      {resources.length === 0 ? (
+      {localResources.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           Aún no hay recursos. Puedes subir varios archivos a la vez.
         </p>
       ) : (
         <ul className="space-y-2">
-          {resources.map((resource) => (
+          {localResources.map((resource) => (
             <li
               key={resource.id}
               className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/80 px-3 py-2.5 sm:px-4"
