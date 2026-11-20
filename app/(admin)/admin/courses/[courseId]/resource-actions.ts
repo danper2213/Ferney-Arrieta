@@ -4,9 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import {
   buildLessonResourceStoragePath,
+  getResourceMetaFromFileName,
   getResourceTypeFromMime,
   LESSON_RESOURCES_BUCKET,
   MAX_RESOURCE_SIZE_BYTES,
+  resolveResourceFileMeta,
   sanitizeResourceFileName,
   type LessonResourceType,
 } from '@/lib/lesson-resources';
@@ -91,10 +93,17 @@ export async function registerLessonResource(
     return { error: 'Tamaño de archivo no válido' };
   }
 
-  const derivedType = getResourceTypeFromMime(mimeType);
+  const resolved = resolveResourceFileMeta({ name: fileName, type: mimeType });
+  const derivedFromMime = getResourceTypeFromMime(mimeType);
+  const derivedFromName = getResourceMetaFromFileName(fileName)?.resourceType ?? null;
+  const derivedType = resolved?.resourceType ?? derivedFromMime ?? derivedFromName;
+
   if (!derivedType || derivedType !== resourceType) {
     return { error: 'Tipo de archivo no compatible' };
   }
+
+  // Normaliza MIME vacío/octet-stream a uno aceptado por el bucket.
+  const normalizedMime = resolved?.mimeType || mimeType;
 
   try {
     const supabase = await createClient();
@@ -129,7 +138,7 @@ export async function registerLessonResource(
       title,
       file_name: safeName,
       storage_path: storagePath,
-      mime_type: mimeType,
+      mime_type: normalizedMime,
       resource_type: resourceType,
       file_size: fileSize,
       order_index: nextOrder,

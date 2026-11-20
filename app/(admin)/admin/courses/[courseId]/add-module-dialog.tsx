@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ function SubmitButton() {
 }
 
 export function AddModuleDialog({ courseId }: { courseId: string }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const initialState: CreateModuleState = {};
   const [state, formAction] = useActionState(
@@ -42,10 +44,14 @@ export function AddModuleDialog({ courseId }: { courseId: string }) {
     initialState
   );
 
-  // Cerrar el diálogo cuando se crea exitosamente
-  if (state.success && open) {
-    setOpen(false);
-  }
+  useEffect(() => {
+    if (state.success) {
+      setOpen(false);
+      router.refresh();
+    }
+  }, [state, router]);
+
+  const titleId = `module-title-${courseId}`;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -65,9 +71,9 @@ export function AddModuleDialog({ courseId }: { courseId: string }) {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="title">Título del Módulo</Label>
+              <Label htmlFor={titleId}>Título del Módulo</Label>
               <Input
-                id="title"
+                id={titleId}
                 name="title"
                 placeholder="Ej: Introducción al curso"
                 required
