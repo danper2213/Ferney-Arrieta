@@ -16,6 +16,7 @@ import {
 } from '@/components/student/LessonResourcesSection';
 import { LESSON_RESOURCES_BUCKET, type LessonResource } from '@/lib/lesson-resources';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import { isNotDeleted } from '@/lib/soft-delete';
 import {
   appendEmbedStartTime,
   parseResumeSeconds,
@@ -91,6 +92,25 @@ export default async function StudentLessonPage({
   }
 
   // 4. Obtener la lección con información del módulo
+  const lessonSelectWithSoftDelete = `
+      id,
+      title,
+      description,
+      video_provider_id,
+      days_to_unlock,
+      order_index,
+      module_id,
+      motivational_message,
+      deleted_at,
+      modules!inner (
+        id,
+        title,
+        order_index,
+        course_id,
+        deleted_at
+      )
+    `;
+
   const lessonSelectWithMessage = `
       id,
       title,
@@ -126,18 +146,33 @@ export default async function StudentLessonPage({
 
   let { data: lesson, error: lessonError } = await supabase
     .from('lessons')
-    .select(lessonSelectWithMessage)
+    .select(lessonSelectWithSoftDelete)
     .eq('id', lessonId)
     .maybeSingle();
 
   if (lessonError && isMissingColumnError(lessonError)) {
-    const fallback = await supabase
+    const withMessage = await supabase
       .from('lessons')
-      .select(lessonSelectBase)
+      .select(lessonSelectWithMessage)
       .eq('id', lessonId)
       .maybeSingle();
-    lesson = fallback.data ? { ...fallback.data, motivational_message: null } : null;
-    lessonError = fallback.error;
+
+    if (withMessage.error && isMissingColumnError(withMessage.error)) {
+      const fallback = await supabase
+        .from('lessons')
+        .select(lessonSelectBase)
+        .eq('id', lessonId)
+        .maybeSingle();
+      lesson = (fallback.data
+        ? { ...fallback.data, motivational_message: null, deleted_at: null }
+        : null) as unknown as typeof lesson;
+      lessonError = fallback.error;
+    } else {
+      lesson = (withMessage.data
+        ? { ...withMessage.data, deleted_at: null }
+        : null) as unknown as typeof lesson;
+      lessonError = withMessage.error;
+    }
   }
 
   if (lessonError || !lesson) {
@@ -145,7 +180,15 @@ export default async function StudentLessonPage({
   }
 
   // Verificar que la lección pertenece al curso correcto
-  const lessonData = lesson as unknown as LessonWithModule;
+  const lessonData = lesson as unknown as LessonWithModule & {
+    deleted_at?: string | null;
+    modules: LessonWithModule['modules'] & { deleted_at?: string | null };
+  };
+
+  if (!isNotDeleted(lessonData) || !isNotDeleted(lessonData.modules)) {
+    redirect(`/dashboard?error=Lección no encontrada`);
+  }
+
   if (lessonData.modules.course_id !== course.id) {
     redirect('/dashboard?error=Esta lección no pertenece al curso');
   }
@@ -158,10 +201,19 @@ export default async function StudentLessonPage({
   const isLocked = now < unlockDate;
 
   // 6. Obtener todas las lecciones del curso para navegación
-  const { data: allLessons } = await supabase
-    .from('lessons')
-    .select(
-      `
+  const allLessonsSelectWithSoftDelete = `
+      id,
+      title,
+      order_index,
+      deleted_at,
+      modules!inner (
+        order_index,
+        course_id,
+        deleted_at
+      )
+    `;
+
+  const allLessonsSelectBase = `
       id,
       title,
       order_index,
@@ -169,12 +221,38 @@ export default async function StudentLessonPage({
         order_index,
         course_id
       )
-    `
-    )
+    `;
+
+  let { data: allLessons, error: allLessonsError } = await supabase
+    .from('lessons')
+    .select(allLessonsSelectWithSoftDelete)
     .eq('modules.course_id', course.id);
+
+  if (allLessonsError && isMissingColumnError(allLessonsError)) {
+    const fallback = await supabase
+      .from('lessons')
+      .select(allLessonsSelectBase)
+      .eq('modules.course_id', course.id);
+    allLessons = (fallback.data ?? []).map((l) => {
+      const nested = l.modules as unknown as
+        | { order_index: number; course_id: string }
+        | { order_index: number; course_id: string }[]
+        | null;
+      const moduleRow = Array.isArray(nested) ? nested[0] ?? null : nested;
+      return {
+        ...l,
+        deleted_at: null,
+        modules: moduleRow ? { ...moduleRow, deleted_at: null } : null,
+      };
+    }) as unknown as typeof allLessons;
+  }
 
   // Ordenar lecciones: primero por módulo, luego por orden dentro del módulo
   const sortedLessons: FlatLesson[] = (allLessons || [])
+    .filter((l) => {
+      const mod = l.modules as unknown as { deleted_at?: string | null };
+      return isNotDeleted(l as { deleted_at?: string | null }) && isNotDeleted(mod ?? {});
+    })
     .map((l) => {
       const mod = l.modules as unknown as { order_index: number };
       return {

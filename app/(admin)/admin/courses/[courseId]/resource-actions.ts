@@ -12,6 +12,7 @@ import {
   sanitizeResourceFileName,
   type LessonResourceType,
 } from '@/lib/lesson-resources';
+import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
 
 export type ResourceMutationState = {
   error?: string;
@@ -33,21 +34,47 @@ async function getLessonCourseId(
   supabase: Awaited<ReturnType<typeof createClient>>,
   lessonId: string
 ): Promise<string | null> {
-  const { data: lesson } = await supabase
+  const { data: lessonWithSoftDelete, error: lessonError } = await supabase
     .from('lessons')
-    .select('module_id')
+    .select('module_id, deleted_at')
     .eq('id', lessonId)
     .maybeSingle();
 
-  if (!lesson?.module_id) return null;
+  let lesson: { module_id: string; deleted_at?: string | null } | null = null;
+  if (lessonError && isMissingColumnError(lessonError)) {
+    const fallback = await supabase
+      .from('lessons')
+      .select('module_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+    lesson = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+  } else {
+    lesson = lessonWithSoftDelete;
+  }
 
-  const { data: module } = await supabase
+  if (!lesson?.module_id || lesson.deleted_at) return null;
+
+  const { data: moduleWithSoftDelete, error: moduleError } = await supabase
     .from('modules')
-    .select('course_id')
+    .select('course_id, deleted_at')
     .eq('id', lesson.module_id)
     .maybeSingle();
 
-  return module?.course_id ?? null;
+  let moduleRow: { course_id: string; deleted_at?: string | null } | null = null;
+  if (moduleError && isMissingColumnError(moduleError)) {
+    const fallback = await supabase
+      .from('modules')
+      .select('course_id')
+      .eq('id', lesson.module_id)
+      .maybeSingle();
+    moduleRow = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+  } else {
+    moduleRow = moduleWithSoftDelete;
+  }
+
+  if (!moduleRow || moduleRow.deleted_at) return null;
+
+  return moduleRow.course_id ?? null;
 }
 
 async function assertMaster(
@@ -110,13 +137,23 @@ export async function registerLessonResource(
     const auth = await assertMaster(supabase);
     if ('error' in auth) return { error: auth.error };
 
-    const { data: lesson, error: lessonError } = await supabase
+    let { data: lesson, error: lessonError } = await supabase
       .from('lessons')
-      .select('id')
+      .select('id, deleted_at')
       .eq('id', lessonId)
       .maybeSingle();
 
-    if (lessonError || !lesson) {
+    if (lessonError && isMissingColumnError(lessonError)) {
+      const fallback = await supabase
+        .from('lessons')
+        .select('id')
+        .eq('id', lessonId)
+        .maybeSingle();
+      lesson = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+      lessonError = fallback.error;
+    }
+
+    if (lessonError || !lesson || lesson.deleted_at) {
       return { error: 'La lección no existe' };
     }
 

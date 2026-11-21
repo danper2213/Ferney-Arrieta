@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import { isNotDeleted } from '@/lib/soft-delete';
 import {
   buildContinueLearningHref,
   resolveContinueLearningTarget,
@@ -50,13 +51,24 @@ export default async function CourseSlugPage({
     (Date.now() - enrollmentDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const { data: modulesList } = await supabase
+  let { data: modulesList, error: modulesError } = await supabase
     .from('modules')
-    .select('id, order_index')
+    .select('id, order_index, deleted_at')
     .eq('course_id', course.id)
     .order('order_index', { ascending: true });
 
-  const modules = (modulesList ?? []) as { id: string; order_index: number }[];
+  if (modulesError && isMissingColumnError(modulesError)) {
+    const fallback = await supabase
+      .from('modules')
+      .select('id, order_index')
+      .eq('course_id', course.id)
+      .order('order_index', { ascending: true });
+    modulesList = (fallback.data ?? []).map((m) => ({ ...m, deleted_at: null }));
+  }
+
+  const modules = (
+    (modulesList ?? []) as { id: string; order_index: number; deleted_at?: string | null }[]
+  ).filter(isNotDeleted);
   const moduleIds = modules.map((m) => m.id);
   const moduleOrder = new Map(modules.map((m) => [m.id, m.order_index]));
 
@@ -64,10 +76,18 @@ export default async function CourseSlugPage({
     redirect('/dashboard');
   }
 
-  const { data: lessonsRaw } = await supabase
+  let { data: lessonsRaw, error: lessonsError } = await supabase
     .from('lessons')
-    .select('id, module_id, order_index, days_to_unlock')
+    .select('id, module_id, order_index, days_to_unlock, deleted_at')
     .in('module_id', moduleIds);
+
+  if (lessonsError && isMissingColumnError(lessonsError)) {
+    const fallback = await supabase
+      .from('lessons')
+      .select('id, module_id, order_index, days_to_unlock')
+      .in('module_id', moduleIds);
+    lessonsRaw = (fallback.data ?? []).map((l) => ({ ...l, deleted_at: null }));
+  }
 
   const lessons: CourseLessonRef[] = (
     (lessonsRaw ?? []) as {
@@ -75,13 +95,16 @@ export default async function CourseSlugPage({
       module_id: string;
       order_index: number;
       days_to_unlock: number | null;
+      deleted_at?: string | null;
     }[]
-  ).map((l) => ({
-    id: l.id,
-    order_index: l.order_index,
-    days_to_unlock: l.days_to_unlock,
-    module_order_index: moduleOrder.get(l.module_id) ?? 0,
-  }));
+  )
+    .filter(isNotDeleted)
+    .map((l) => ({
+      id: l.id,
+      order_index: l.order_index,
+      days_to_unlock: l.days_to_unlock,
+      module_order_index: moduleOrder.get(l.module_id) ?? 0,
+    }));
 
   let progressRows: ProgressWatchRow[] = [];
   const { data: progressWithWatch, error: progressError } = await supabase
