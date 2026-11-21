@@ -11,6 +11,7 @@ import {
 import { BookOpen, GraduationCap, ArrowRight, CalendarX } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import { isNotDeleted } from '@/lib/soft-delete';
 
 type EnrollmentWithCourse = {
   course_id: string;
@@ -72,23 +73,43 @@ export default async function StudentDashboardPage() {
       .eq('user_id', user.id)
       .eq('is_completed', true);
 
-    const { data: modulesRaw = [] } = await supabase
+    let { data: modulesRaw = [], error: modulesError } = await supabase
       .from('modules')
-      .select('id, course_id')
+      .select('id, course_id, deleted_at')
       .in('course_id', courseIds);
 
-    const moduleIds = (modulesRaw as { id: string; course_id: string }[]).map((m) => m.id);
-    const moduleToCourse = new Map(
-      (modulesRaw as { id: string; course_id: string }[]).map((m) => [m.id, m.course_id])
-    );
+    if (modulesError && isMissingColumnError(modulesError)) {
+      const fallback = await supabase
+        .from('modules')
+        .select('id, course_id')
+        .in('course_id', courseIds);
+      modulesRaw = (fallback.data ?? []).map((m) => ({ ...m, deleted_at: null }));
+    }
+
+    const activeModules = (
+      (modulesRaw ?? []) as { id: string; course_id: string; deleted_at?: string | null }[]
+    ).filter(isNotDeleted);
+    const moduleIds = activeModules.map((m) => m.id);
+    const moduleToCourse = new Map(activeModules.map((m) => [m.id, m.course_id]));
 
     let lessonsRaw: { id: string; module_id: string }[] = [];
     if (moduleIds.length > 0) {
-      const { data: lessonsData = [] } = await supabase
+      let { data: lessonsData = [], error: lessonsError } = await supabase
         .from('lessons')
-        .select('id, module_id')
+        .select('id, module_id, deleted_at')
         .in('module_id', moduleIds);
-      lessonsRaw = lessonsData as { id: string; module_id: string }[];
+
+      if (lessonsError && isMissingColumnError(lessonsError)) {
+        const fallback = await supabase
+          .from('lessons')
+          .select('id, module_id')
+          .in('module_id', moduleIds);
+        lessonsData = (fallback.data ?? []).map((l) => ({ ...l, deleted_at: null }));
+      }
+
+      lessonsRaw = (
+        (lessonsData ?? []) as { id: string; module_id: string; deleted_at?: string | null }[]
+      ).filter(isNotDeleted);
     }
 
     const completedLessonIds = new Set(

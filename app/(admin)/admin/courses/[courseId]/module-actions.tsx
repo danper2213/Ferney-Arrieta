@@ -52,7 +52,7 @@ export function ModuleActions({ moduleId, title }: ModuleActionsProps) {
         toast.error(result.error);
         return;
       }
-      toast.success('Modulo eliminado');
+      toast.success('Modulo movido a la papelera');
       setOpenDelete(false);
     });
   };
@@ -84,7 +84,7 @@ export function ModuleActions({ moduleId, title }: ModuleActionsProps) {
             }}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Eliminar modulo
+            Mover a papelera
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -119,9 +119,10 @@ export function ModuleActions({ moduleId, title }: ModuleActionsProps) {
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Eliminar modulo</DialogTitle>
+            <DialogTitle>Mover modulo a la papelera</DialogTitle>
             <DialogDescription>
-              Esta accion elimina el modulo y todas sus lecciones. No se puede deshacer.
+              El modulo y sus lecciones se ocultan del curso y de los estudiantes. Puedes
+              restaurarlos desde la Papelera.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -129,7 +130,7 @@ export function ModuleActions({ moduleId, title }: ModuleActionsProps) {
               Cancelar
             </Button>
             <Button type="button" variant="destructive" onClick={onDelete} disabled={isDeleting}>
-              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              {isDeleting ? 'Moviendo...' : 'Mover a papelera'}
             </Button>
           </DialogFooter>
         </DialogContent>

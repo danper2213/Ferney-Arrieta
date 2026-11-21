@@ -3,7 +3,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { deleteBunnyVideo } from '@/app/actions/bunny';
-import { deleteLessonResourcesForLesson } from '@/lib/lesson-resources';
+import {
+  isMissingColumnError,
+  SOFT_DELETE_MIGRATION_HINT,
+} from '@/lib/supabase/schema-fallback';
 
 export type CreateModuleState = {
   error?: string;
@@ -62,14 +65,29 @@ export async function createModule(
       };
     }
 
-    // Obtener el orden del último módulo
-    const { data: lastModule } = await supabase
+    // Obtener el orden del último módulo activo
+    let lastModule: { order_index: number } | null = null;
+    const { data: lastModuleActive, error: lastModuleError } = await supabase
       .from('modules')
       .select('order_index')
       .eq('course_id', courseId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (lastModuleError && isMissingColumnError(lastModuleError)) {
+      const fallback = await supabase
+        .from('modules')
+        .select('order_index')
+        .eq('course_id', courseId)
+        .order('order_index', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastModule = fallback.data;
+    } else {
+      lastModule = lastModuleActive;
+    }
 
     const nextOrder = (lastModule?.order_index ?? -1) + 1;
 
@@ -161,27 +179,52 @@ export async function createLesson(
       };
     }
 
-    // Verificar que el módulo existe y obtener el course_id
-    const { data: module, error: moduleError } = await supabase
+    // Verificar que el módulo activo existe y obtener el course_id
+    let { data: module, error: moduleError } = await supabase
       .from('modules')
-      .select('id, course_id')
+      .select('id, course_id, deleted_at')
       .eq('id', moduleId)
       .maybeSingle();
 
-    if (moduleError || !module) {
+    if (moduleError && isMissingColumnError(moduleError)) {
+      const fallback = await supabase
+        .from('modules')
+        .select('id, course_id')
+        .eq('id', moduleId)
+        .maybeSingle();
+      module = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+      moduleError = fallback.error;
+    }
+
+    if (moduleError || !module || module.deleted_at) {
       return {
         error: 'El módulo no existe',
       };
     }
 
-    // Obtener el orden de la última lección
-    const { data: lastLesson } = await supabase
+    // Obtener el orden de la última lección activa
+    let lastLesson: { order_index: number } | null = null;
+    const { data: lastLessonActive, error: lastLessonError } = await supabase
       .from('lessons')
       .select('order_index')
       .eq('module_id', moduleId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (lastLessonError && isMissingColumnError(lastLessonError)) {
+      const fallback = await supabase
+        .from('lessons')
+        .select('order_index')
+        .eq('module_id', moduleId)
+        .order('order_index', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastLesson = fallback.data;
+    } else {
+      lastLesson = lastLessonActive;
+    }
 
     const nextOrder = (lastLesson?.order_index ?? -1) + 1;
 
@@ -316,13 +359,23 @@ export async function moveLesson(lessonId: string, direction: 'up' | 'down'): Pr
       return { error: 'Debes iniciar sesión' };
     }
 
-    const { data: current, error: curErr } = await supabase
+    let { data: current, error: curErr } = await supabase
       .from('lessons')
-      .select('id, module_id, order_index')
+      .select('id, module_id, order_index, deleted_at')
       .eq('id', lessonId)
       .maybeSingle();
 
-    if (curErr || !current) {
+    if (curErr && isMissingColumnError(curErr)) {
+      const fallback = await supabase
+        .from('lessons')
+        .select('id, module_id, order_index')
+        .eq('id', lessonId)
+        .maybeSingle();
+      current = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+      curErr = fallback.error;
+    }
+
+    if (curErr || !current || (current as { deleted_at?: string | null }).deleted_at) {
       return { error: 'La lección no existe' };
     }
 
@@ -340,12 +393,24 @@ export async function moveLesson(lessonId: string, direction: 'up' | 'down'): Pr
 
     const courseId = (mod as { course_id: string }).course_id;
 
-    const { data: rowsRaw, error: listErr } = await supabase
+    let { data: rowsRaw, error: listErr } = await supabase
       .from('lessons')
       .select('id, order_index')
       .eq('module_id', moduleId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
       .order('id', { ascending: true });
+
+    if (listErr && isMissingColumnError(listErr)) {
+      const fallback = await supabase
+        .from('lessons')
+        .select('id, order_index')
+        .eq('module_id', moduleId)
+        .order('order_index', { ascending: true })
+        .order('id', { ascending: true });
+      rowsRaw = fallback.data;
+      listErr = fallback.error;
+    }
 
     if (listErr || !rowsRaw?.length) {
       return { error: 'No se pudieron cargar las lecciones del módulo' };
@@ -420,24 +485,46 @@ export async function moveModule(moduleId: string, direction: 'up' | 'down'): Pr
       return { error: 'Debes iniciar sesión' };
     }
 
-    const { data: current, error: curErr } = await supabase
+    let { data: current, error: curErr } = await supabase
       .from('modules')
-      .select('id, course_id, order_index')
+      .select('id, course_id, order_index, deleted_at')
       .eq('id', moduleId)
       .maybeSingle();
 
-    if (curErr || !current) {
+    if (curErr && isMissingColumnError(curErr)) {
+      const fallback = await supabase
+        .from('modules')
+        .select('id, course_id, order_index')
+        .eq('id', moduleId)
+        .maybeSingle();
+      current = fallback.data ? { ...fallback.data, deleted_at: null } : null;
+      curErr = fallback.error;
+    }
+
+    if (curErr || !current || (current as { deleted_at?: string | null }).deleted_at) {
       return { error: 'El módulo no existe' };
     }
 
     const courseId = (current as { course_id: string }).course_id;
 
-    const { data: rowsRaw, error: listErr } = await supabase
+    let { data: rowsRaw, error: listErr } = await supabase
       .from('modules')
       .select('id, order_index')
       .eq('course_id', courseId)
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
       .order('id', { ascending: true });
+
+    if (listErr && isMissingColumnError(listErr)) {
+      const fallback = await supabase
+        .from('modules')
+        .select('id, order_index')
+        .eq('course_id', courseId)
+        .order('order_index', { ascending: true })
+        .order('id', { ascending: true });
+      rowsRaw = fallback.data;
+      listErr = fallback.error;
+    }
 
     if (listErr || !rowsRaw?.length) {
       return { error: 'No se pudieron cargar los módulos del curso' };
@@ -582,33 +669,54 @@ export async function deleteModule(
     const supabase = await createClient();
     const { data: module, error: fetchError } = await supabase
       .from('modules')
-      .select('id, course_id')
+      .select('id, course_id, deleted_at')
       .eq('id', moduleId)
       .maybeSingle();
 
-    if (fetchError || !module) {
+    if (fetchError) {
+      if (isMissingColumnError(fetchError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
       return { error: 'El modulo no existe' };
     }
 
-    // Elimina primero lecciones para evitar errores de FK.
-    const { error: lessonsDeleteError } = await supabase
-      .from('lessons')
-      .delete()
-      .eq('module_id', moduleId);
-
-    if (lessonsDeleteError) {
-      const err = lessonsDeleteError as { message?: string; details?: string };
-      return { error: err?.message || err?.details || 'No se pudieron eliminar las lecciones del modulo' };
+    if (!module || module.deleted_at) {
+      return { error: 'El modulo no existe' };
     }
 
-    const { error: moduleDeleteError } = await supabase
-      .from('modules')
-      .delete()
-      .eq('id', moduleId);
+    const deletedAt = new Date().toISOString();
 
-    if (moduleDeleteError) {
-      const err = moduleDeleteError as { message?: string; details?: string };
-      return { error: err?.message || err?.details || 'No se pudo eliminar el modulo' };
+    const { error: lessonsSoftDeleteError } = await supabase
+      .from('lessons')
+      .update({ deleted_at: deletedAt })
+      .eq('module_id', moduleId)
+      .is('deleted_at', null);
+
+    if (lessonsSoftDeleteError) {
+      if (isMissingColumnError(lessonsSoftDeleteError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      const err = lessonsSoftDeleteError as { message?: string; details?: string };
+      return {
+        error:
+          err?.message ||
+          err?.details ||
+          'No se pudieron mover las lecciones del modulo a la papelera',
+      };
+    }
+
+    const { error: moduleSoftDeleteError } = await supabase
+      .from('modules')
+      .update({ deleted_at: deletedAt })
+      .eq('id', moduleId)
+      .is('deleted_at', null);
+
+    if (moduleSoftDeleteError) {
+      if (isMissingColumnError(moduleSoftDeleteError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      const err = moduleSoftDeleteError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo mover el modulo a la papelera' };
     }
 
     revalidatePath(`/admin/courses/${module.course_id}`);
@@ -616,6 +724,66 @@ export async function deleteModule(
   } catch (error) {
     console.error('deleteModule error:', error);
     return { error: 'Error inesperado al eliminar el modulo' };
+  }
+}
+
+export async function restoreModule(
+  moduleId: string
+): Promise<CourseMutationState> {
+  try {
+    const supabase = await createClient();
+    const { data: module, error: fetchError } = await supabase
+      .from('modules')
+      .select('id, course_id, deleted_at')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (fetchError) {
+      if (isMissingColumnError(fetchError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      return { error: 'El modulo no existe' };
+    }
+
+    if (!module) {
+      return { error: 'El modulo no existe' };
+    }
+
+    if (!module.deleted_at) {
+      return { error: 'El modulo no esta en la papelera' };
+    }
+
+    const { error: moduleRestoreError } = await supabase
+      .from('modules')
+      .update({ deleted_at: null })
+      .eq('id', moduleId);
+
+    if (moduleRestoreError) {
+      const err = moduleRestoreError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo restaurar el modulo' };
+    }
+
+    const { error: lessonsRestoreError } = await supabase
+      .from('lessons')
+      .update({ deleted_at: null })
+      .eq('module_id', moduleId)
+      .not('deleted_at', 'is', null);
+
+    if (lessonsRestoreError) {
+      const err = lessonsRestoreError as { message?: string; details?: string };
+      return {
+        error:
+          err?.message ||
+          err?.details ||
+          'El modulo se restauro, pero no sus lecciones',
+      };
+    }
+
+    revalidatePath(`/admin/courses/${module.course_id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('restoreModule error:', error);
+    return { error: 'Error inesperado al restaurar el modulo' };
   }
 }
 
@@ -687,11 +855,18 @@ export async function deleteLesson(
     const supabase = await createClient();
     const { data: lesson, error: fetchError } = await supabase
       .from('lessons')
-      .select('id, module_id')
+      .select('id, module_id, deleted_at')
       .eq('id', lessonId)
       .maybeSingle();
 
-    if (fetchError || !lesson) {
+    if (fetchError) {
+      if (isMissingColumnError(fetchError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      return { error: 'La leccion no existe' };
+    }
+
+    if (!lesson || lesson.deleted_at) {
       return { error: 'La leccion no existe' };
     }
 
@@ -701,16 +876,19 @@ export async function deleteLesson(
       .eq('id', lesson.module_id)
       .maybeSingle();
 
-    await deleteLessonResourcesForLesson(supabase, lessonId);
-
-    const { error: deleteError } = await supabase
+    const deletedAt = new Date().toISOString();
+    const { error: softDeleteError } = await supabase
       .from('lessons')
-      .delete()
-      .eq('id', lessonId);
+      .update({ deleted_at: deletedAt })
+      .eq('id', lessonId)
+      .is('deleted_at', null);
 
-    if (deleteError) {
-      const err = deleteError as { message?: string; details?: string };
-      return { error: err?.message || err?.details || 'No se pudo eliminar la leccion' };
+    if (softDeleteError) {
+      if (isMissingColumnError(softDeleteError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      const err = softDeleteError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo mover la leccion a la papelera' };
     }
 
     if (module?.course_id) {
@@ -720,6 +898,78 @@ export async function deleteLesson(
   } catch (error) {
     console.error('deleteLesson error:', error);
     return { error: 'Error inesperado al eliminar la leccion' };
+  }
+}
+
+export async function restoreLesson(
+  lessonId: string
+): Promise<CourseMutationState> {
+  try {
+    const supabase = await createClient();
+    const { data: lesson, error: fetchError } = await supabase
+      .from('lessons')
+      .select('id, module_id, deleted_at')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (fetchError) {
+      if (isMissingColumnError(fetchError)) {
+        return { error: SOFT_DELETE_MIGRATION_HINT };
+      }
+      return { error: 'La leccion no existe' };
+    }
+
+    if (!lesson) {
+      return { error: 'La leccion no existe' };
+    }
+
+    if (!lesson.deleted_at) {
+      return { error: 'La leccion no esta en la papelera' };
+    }
+
+    const { data: module, error: moduleError } = await supabase
+      .from('modules')
+      .select('id, course_id, deleted_at')
+      .eq('id', lesson.module_id)
+      .maybeSingle();
+
+    if (moduleError || !module) {
+      return { error: 'El modulo de la leccion no existe' };
+    }
+
+    // Si el módulo padre está en papelera, restaurarlo primero (sin tocar otras lecciones).
+    if (module.deleted_at) {
+      const { error: moduleRestoreError } = await supabase
+        .from('modules')
+        .update({ deleted_at: null })
+        .eq('id', module.id);
+
+      if (moduleRestoreError) {
+        const err = moduleRestoreError as { message?: string; details?: string };
+        return {
+          error:
+            err?.message ||
+            err?.details ||
+            'No se pudo restaurar el modulo padre de la leccion',
+        };
+      }
+    }
+
+    const { error: lessonRestoreError } = await supabase
+      .from('lessons')
+      .update({ deleted_at: null })
+      .eq('id', lessonId);
+
+    if (lessonRestoreError) {
+      const err = lessonRestoreError as { message?: string; details?: string };
+      return { error: err?.message || err?.details || 'No se pudo restaurar la leccion' };
+    }
+
+    revalidatePath(`/admin/courses/${module.course_id}`);
+    return { success: true };
+  } catch (error) {
+    console.error('restoreLesson error:', error);
+    return { error: 'Error inesperado al restaurar la leccion' };
   }
 }
 

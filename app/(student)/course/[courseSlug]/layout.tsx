@@ -4,6 +4,7 @@ import { CourseLayoutShell } from '@/components/student/CourseLayoutShell';
 import { CourseAccessExpired } from '@/components/student/CourseAccessExpired';
 import { isEnrollmentActive } from '@/lib/enrollment-access';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import { isNotDeleted } from '@/lib/soft-delete';
 
 type CourseSidebarModule = {
   id: string;
@@ -84,11 +85,23 @@ export default async function CourseLayout({
     );
   }
 
-  // 4. Obtener módulos con lecciones
-  const { data: modulesRaw } = await supabase
-    .from('modules')
-    .select(
-      `
+  // 4. Obtener módulos con lecciones (ocultar soft-deleted)
+  const modulesSelectWithSoftDelete = `
+      id,
+      title,
+      order_index,
+      deleted_at,
+      lessons (
+        id,
+        title,
+        order_index,
+        days_to_unlock,
+        module_id,
+        deleted_at
+      )
+    `;
+
+  const modulesSelectBase = `
       id,
       title,
       order_index,
@@ -99,10 +112,22 @@ export default async function CourseLayout({
         days_to_unlock,
         module_id
       )
-    `
-    )
+    `;
+
+  let { data: modulesRaw, error: modulesError } = await supabase
+    .from('modules')
+    .select(modulesSelectWithSoftDelete)
     .eq('course_id', course.id)
     .order('order_index', { ascending: true });
+
+  if (modulesError && isMissingColumnError(modulesError)) {
+    const fallback = await supabase
+      .from('modules')
+      .select(modulesSelectBase)
+      .eq('course_id', course.id)
+      .order('order_index', { ascending: true });
+    modulesRaw = fallback.data as unknown as typeof modulesRaw;
+  }
 
   // 5. Obtener progreso del usuario
   const { data: progressRows } = await supabase
@@ -117,14 +142,24 @@ export default async function CourseLayout({
   const rawModules = Array.isArray(modulesRaw) ? modulesRaw : [];
   const modules: CourseSidebarModule[] = rawModules
     .filter((m) => m != null && m.id)
+    .filter((m) => isNotDeleted(m as { deleted_at?: string | null }))
     .map((mod) => {
       const lessonsRaw = (mod as { lessons?: unknown }).lessons ?? [];
       const lessonsList = Array.isArray(lessonsRaw) ? lessonsRaw : [];
       const lessons = lessonsList
         .filter(
-          (l): l is { id: string; title: string; order_index: number; days_to_unlock: number; module_id: string } =>
-            l != null && typeof l === 'object' && 'id' in l
+          (
+            l
+          ): l is {
+            id: string;
+            title: string;
+            order_index: number;
+            days_to_unlock: number;
+            module_id: string;
+            deleted_at?: string | null;
+          } => l != null && typeof l === 'object' && 'id' in l
         )
+        .filter(isNotDeleted)
         .sort((a, b) => a.order_index - b.order_index);
 
       return {
@@ -135,7 +170,6 @@ export default async function CourseLayout({
       };
     })
     .sort((a, b) => a.order_index - b.order_index);
-
   const totalLessons = modules.reduce((acc, m) => acc + m.lessons.length, 0);
 
   const enrollmentDate = new Date(enrollment.created_at);

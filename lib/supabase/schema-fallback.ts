@@ -33,3 +33,9 @@ export const PROGRESS_WATCH_POSITION_MIGRATION =
 
 export const PROGRESS_WATCH_POSITION_MIGRATION_HINT =
   'Aplica en Supabase: 20251016000000_progress_watch_position.sql (last_position_seconds, last_watched_at).';
+
+export const SOFT_DELETE_MIGRATION =
+  'supabase/migrations/20261121160000_soft_delete_modules_lessons.sql';
+
+export const SOFT_DELETE_MIGRATION_HINT =
+  'Aplica en Supabase: 20261121160000_soft_delete_modules_lessons.sql (columna deleted_at en modules y lessons).';
