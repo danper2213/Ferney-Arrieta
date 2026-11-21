@@ -68,7 +68,7 @@ export function LessonActions({
         toast.error(result.error);
         return;
       }
-      toast.success('Seccion eliminada');
+      toast.success('Seccion movida a la papelera');
       setOpenDelete(false);
     });
   };
@@ -134,7 +134,7 @@ export function LessonActions({
             }}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Eliminar seccion
+            Mover a papelera
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -249,9 +249,10 @@ export function LessonActions({
       <Dialog open={openDelete} onOpenChange={setOpenDelete}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Eliminar seccion</DialogTitle>
+            <DialogTitle>Mover seccion a la papelera</DialogTitle>
             <DialogDescription>
-              Esta accion elimina la leccion de forma permanente. No se puede deshacer.
+              La leccion se oculta del curso y de los estudiantes. Videos, recursos y progreso se
+              conservan. Puedes restaurarla desde la Papelera.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -259,7 +260,7 @@ export function LessonActions({
               Cancelar
             </Button>
             <Button type="button" variant="destructive" onClick={onDelete} disabled={isDeleting}>
-              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              {isDeleting ? 'Moviendo...' : 'Mover a papelera'}
             </Button>
           </DialogFooter>
         </DialogContent>

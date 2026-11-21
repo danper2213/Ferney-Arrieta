@@ -27,8 +27,14 @@ import { ModuleActions } from './module-actions';
 import { ModuleReorderButtons } from './module-reorder-buttons';
 import { LessonActions } from './lesson-actions';
 import { LessonReorderButtons } from './lesson-reorder-buttons';
+import {
+  CourseTrashSection,
+  type TrashLessonItem,
+  type TrashModuleItem,
+} from './course-trash-section';
 import { generateBunnyToken } from '@/lib/bunny/token';
 import { isMissingColumnError } from '@/lib/supabase/schema-fallback';
+import { isNotDeleted } from '@/lib/soft-delete';
 import {
   getLessonOutlineStyle,
   getModuleOutlineStyle,
@@ -51,6 +57,16 @@ type Lesson = {
   video_url?: string | null;
   video_provider_id?: string | null;
   motivational_message?: string | null;
+  deleted_at?: string | null;
+};
+
+type RawLessonRow = Lesson & { deleted_at?: string | null };
+type RawModuleRow = {
+  id: string;
+  title?: string | null;
+  order_index?: number | null;
+  deleted_at?: string | null;
+  lessons?: unknown;
 };
 
 export default async function CourseEditPage({
@@ -72,7 +88,24 @@ export default async function CourseEditPage({
     notFound();
   }
 
-  // Obtener módulos con sus lecciones
+  // Obtener módulos con sus lecciones (incluye soft-deleted para la Papelera)
+  const modulesSelectWithSoftDelete = `
+      id,
+      title,
+      order_index,
+      deleted_at,
+      lessons (
+        id,
+        title,
+        description,
+        days_to_unlock,
+        order_index,
+        video_provider_id,
+        motivational_message,
+        deleted_at
+      )
+    `;
+
   const modulesSelectWithMessage = `
       id,
       title,
@@ -104,18 +137,29 @@ export default async function CourseEditPage({
 
   let { data: modules, error: modulesError } = await supabase
     .from('modules')
-    .select(modulesSelectWithMessage)
+    .select(modulesSelectWithSoftDelete)
     .eq('course_id', courseId)
     .order('order_index', { ascending: true });
 
   if (modulesError && isMissingColumnError(modulesError)) {
-    const fallback = await supabase
+    const withMessage = await supabase
       .from('modules')
-      .select(modulesSelectBase)
+      .select(modulesSelectWithMessage)
       .eq('course_id', courseId)
       .order('order_index', { ascending: true });
-    modules = fallback.data as typeof modules;
-    modulesError = fallback.error;
+
+    if (withMessage.error && isMissingColumnError(withMessage.error)) {
+      const fallback = await supabase
+        .from('modules')
+        .select(modulesSelectBase)
+        .eq('course_id', courseId)
+        .order('order_index', { ascending: true });
+      modules = fallback.data as typeof modules;
+      modulesError = fallback.error;
+    } else {
+      modules = withMessage.data as typeof modules;
+      modulesError = withMessage.error;
+    }
   }
 
   // Extraer mensaje real del error (Supabase devuelve objeto con message/details/code)
@@ -126,27 +170,75 @@ export default async function CourseEditPage({
   }
 
   // Si hay error, usar array vacío para que la página siga mostrándose
-  const rawModules = modulesError ? [] : Array.isArray(modules) ? modules : [];
-  const sortedModules: Module[] = rawModules
-    .filter((mod) => mod != null && typeof mod === 'object' && mod.id)
-    .map((mod) => {
-      const lessonsRaw = (mod as { lessons?: unknown }).lessons ?? [];
-      const lessonsList = Array.isArray(lessonsRaw) ? lessonsRaw : [];
-      const lessons: Lesson[] = lessonsList
-        .filter((l): l is Lesson => l != null && typeof l === 'object' && 'id' in l)
-        .map((l) => ({
-          ...l,
-          motivational_message: l.motivational_message ?? null,
-        }))
-        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-      return {
+  const rawModules: RawModuleRow[] = modulesError
+    ? []
+    : Array.isArray(modules)
+      ? (modules as RawModuleRow[])
+      : [];
+
+  const deletedModules: TrashModuleItem[] = [];
+  const deletedLessons: TrashLessonItem[] = [];
+
+  const sortedModules: Module[] = [];
+
+  for (const mod of rawModules) {
+    if (mod == null || typeof mod !== 'object' || !mod.id) continue;
+
+    const lessonsRaw = mod.lessons ?? [];
+    const lessonsList = Array.isArray(lessonsRaw) ? lessonsRaw : [];
+    const allLessons: RawLessonRow[] = lessonsList
+      .filter(
+        (l): l is RawLessonRow => l != null && typeof l === 'object' && 'id' in l
+      )
+      .map((l) => ({
+        ...l,
+        motivational_message: l.motivational_message ?? null,
+        deleted_at: l.deleted_at ?? null,
+      }))
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+    const moduleDeletedAt = mod.deleted_at ?? null;
+    if (moduleDeletedAt) {
+      deletedModules.push({
         id: mod.id,
         title: mod.title ?? '',
-        order_index: mod.order_index ?? 0,
-        lessons,
-      };
-    })
-    .sort((a, b) => a.order_index - b.order_index);
+        deleted_at: moduleDeletedAt,
+        lessons: allLessons
+          .filter((l) => !isNotDeleted(l) && l.deleted_at)
+          .map((l) => ({
+            id: l.id,
+            title: l.title,
+            deleted_at: l.deleted_at as string,
+          })),
+      });
+      continue;
+    }
+
+    for (const lesson of allLessons) {
+      if (!isNotDeleted(lesson) && lesson.deleted_at) {
+        deletedLessons.push({
+          id: lesson.id,
+          title: lesson.title,
+          deleted_at: lesson.deleted_at,
+          module_id: mod.id,
+          module_title: mod.title ?? '',
+          module_deleted: false,
+        });
+      }
+    }
+
+    sortedModules.push({
+      id: mod.id,
+      title: mod.title ?? '',
+      order_index: mod.order_index ?? 0,
+      lessons: allLessons.filter(isNotDeleted),
+    });
+  }
+
+  sortedModules.sort((a, b) => a.order_index - b.order_index);
+
+  deletedModules.sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
+  deletedLessons.sort((a, b) => b.deleted_at.localeCompare(a.deleted_at));
 
   const totalLessons = sortedModules.reduce((acc, module) => acc + module.lessons.length, 0);
   const getLessonEmbedUrl = (videoProviderId?: string | null) => {
@@ -449,6 +541,11 @@ export default async function CourseEditPage({
           })}
         </Accordion>
       )}
+
+      <CourseTrashSection
+        deletedModules={deletedModules}
+        deletedLessons={deletedLessons}
+      />
     </div>
   );
 }

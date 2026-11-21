@@ -36,11 +36,53 @@ export async function updateLessonMotivationalMessage(
     return { error: 'Solo el administrador puede editar el mensaje' };
   }
 
-  const { data: lesson } = await supabase
+  type LessonForMessage = {
+    module_id: string;
+    deleted_at?: string | null;
+    modules: { course_id?: string; deleted_at?: string | null } | null;
+  };
+
+  let lesson: LessonForMessage | null = null;
+  const { data: lessonWithSoftDelete, error: lessonFetchError } = await supabase
     .from('lessons')
-    .select('module_id, modules!inner(course_id)')
+    .select('module_id, deleted_at, modules!inner(course_id, deleted_at)')
     .eq('id', lessonId)
     .maybeSingle();
+
+  if (lessonFetchError) {
+    const fallback = await supabase
+      .from('lessons')
+      .select('module_id, modules!inner(course_id)')
+      .eq('id', lessonId)
+      .maybeSingle();
+    if (fallback.data) {
+      const nested = fallback.data.modules as unknown as
+        | { course_id?: string }
+        | { course_id?: string }[]
+        | null;
+      const moduleRow = Array.isArray(nested) ? nested[0] ?? null : nested;
+      lesson = {
+        module_id: fallback.data.module_id,
+        deleted_at: null,
+        modules: moduleRow ? { ...moduleRow, deleted_at: null } : null,
+      };
+    }
+  } else if (lessonWithSoftDelete) {
+    const nested = lessonWithSoftDelete.modules as unknown as
+      | { course_id?: string; deleted_at?: string | null }
+      | { course_id?: string; deleted_at?: string | null }[]
+      | null;
+    const moduleRow = Array.isArray(nested) ? nested[0] ?? null : nested;
+    lesson = {
+      module_id: lessonWithSoftDelete.module_id,
+      deleted_at: lessonWithSoftDelete.deleted_at ?? null,
+      modules: moduleRow,
+    };
+  }
+
+  if (!lesson || lesson.deleted_at || lesson.modules?.deleted_at) {
+    return { error: 'La lección no existe' };
+  }
 
   const { error } = await supabase
     .from('lessons')
@@ -51,7 +93,7 @@ export async function updateLessonMotivationalMessage(
     return { error: error.message };
   }
 
-  const courseId = (lesson?.modules as { course_id?: string } | null)?.course_id;
+  const courseId = lesson.modules?.course_id;
 
   if (courseId) {
     revalidatePath(`/admin/courses/${courseId}`);
